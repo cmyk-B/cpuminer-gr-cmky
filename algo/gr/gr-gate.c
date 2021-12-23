@@ -259,7 +259,7 @@ size_t get_config_id() {
   }
 
   // Should not happen!
-  applog(LOG_ERR, "Could not find any config? %d %d %d", gr_hash_order[5],
+  applog(CL_RED, "Could not find any config? %d %d %d", gr_hash_order[5],
          gr_hash_order[11], gr_hash_order[17]);
   return 0;
 }
@@ -269,7 +269,7 @@ void select_tuned_config(int thr_id) {
   memcpy(cn_config, &cn_tune[config_id], 6);
   prefetch_l1 = prefetch_tune[config_id];
   if (opt_debug && !thr_id) {
-    applog(LOG_BLUE, "config %d: %d %d %d %d %d %d %d", config_id, cn_config[0],
+    applog(CL_CYN, "config %d: %d %d %d %d %d %d %d", config_id, cn_config[0],
            cn_config[1], cn_config[2], cn_config[3], cn_config[4], cn_config[5],
            prefetch_l1);
   }
@@ -403,29 +403,28 @@ static void print_stats(const char *prefix, bool total) {
     // Those values can be confusing for the user as they are not
     // representative of the expected hashrate.
     if (opt_debug) {
-      applog(LOG_NOTICE,
+      applog(CL_WHT,
              "Hashrate (True Average):\t\t%.2lf H/s\t-> %.2lf H/s per thread.",
              hashrate, hashrate / opt_n_threads);
     }
     if (opt_benchmark) {
-      applog3("Hashrate (True Average):\t\t%.2lf H/s\t-> %.2lf H/s per thread.",
-              hashrate, hashrate / opt_n_threads);
+      applog("", "Hashrate (True Average):\t\t%.2lf H/s\t-> %.2lf H/s per thread.", hashrate, hashrate / opt_n_threads);
     }
     hashrate = bench_hashrate_all;
   }
   bench_hashrate = hashrate;
   if (total) {
-    applog(total ? LOG_NOTICE : LOG_BLUE,
+    applog("", total ? CL_WHT : CL_CYN,
            "%s\t%.2lf H/s\t-> %.2lf H/s per thread.", prefix, hashrate,
            hashrate / opt_n_threads);
-    applog3("%s\t%.2lf H/s\t-> %.2lf H/s per thread.", prefix, hashrate,
+    applog("", "%s\t%.2lf H/s\t-> %.2lf H/s per thread.", prefix, hashrate,
             hashrate / opt_n_threads);
   } else {
-    applog(total ? LOG_NOTICE : LOG_BLUE,
+    applog("", total ? CL_WHT : CL_CYN,
            "%s\t%.2lf H/s\t-> %.2lf H/s per thread.", prefix, hashrate,
            hashrate / tested_threads);
     if (opt_benchmark) {
-      applog3("%s\t%.2lf H/s\t-> %.2lf H/s per thread.", prefix, hashrate,
+      applog("", "%s\t%.2lf H/s\t-> %.2lf H/s per thread.", prefix, hashrate,
               hashrate / tested_threads);
     }
   }
@@ -615,8 +614,8 @@ static bool save_config() {
   FILE *fd;
   fd = fopen(opt_tuneconfig_file, "w");
   if (fd == NULL) {
-    applog(LOG_ERR, "Could not save \'%s\' file.", opt_tuneconfig_file);
-    applog(LOG_ERR, "Please create \'%s\' file manually.", opt_tuneconfig_file);
+    applog(CL_RED, "Could not save \'%s\' file.", opt_tuneconfig_file);
+    applog(CL_RED, "Please create \'%s\' file manually.", opt_tuneconfig_file);
 
     for (int i = 0; i < 40; i++) {
       fprintf(stdout, "%d %d %d %d %d %d %d %d\n", cn_tune[i][0], cn_tune[i][1],
@@ -764,7 +763,7 @@ void tune(void *input, int thr_id) {
       char *used = strdup("0 0 0 0 0 0");
       memset(cn_tune[i], 0, 6);
       variants_used(cn[i], used);
-      applog(LOG_NOTICE, "Testing rotation: %02d.%d (%s) -> %s + %s + %s",
+      applog(CL_WHT, "Testing rotation: %02d.%d (%s) -> %s + %s + %s",
              (i / 2) + 1, i % 2 + 1, used, variant_name(cn[i][0]),
              variant_name(cn[i][1]), variant_name(cn[i][2]));
       free(used);
@@ -798,7 +797,7 @@ void tune(void *input, int thr_id) {
           continue;
         }
         if (thr_id == 0 && pf == 0) {
-          applog(LOG_INFO,
+          applog("",
                  "Testing: %s (%s) + %s (%s) + %s (%s) - %d/%d %.1lf%% ~%.1lf "
                  "min remaining.",
                  variant_name(cn[i][0]), variant_way(config[0]),
@@ -846,7 +845,7 @@ void tune(void *input, int thr_id) {
     } while (next_config(config));
 
     if (thr_id == 0) {
-      applog(LOG_NOTICE,
+      applog(CL_WHT,
              "Best config for rotation %02d.%d: %d %d %d %d %d %d + %d "
              "threads -> "
              "%.02lf H/s",
@@ -890,7 +889,7 @@ void tune(void *input, int thr_id) {
         prefetch_l1 = prefetch_tune[i];
 
         if (thr_id == 0) {
-          applog(LOG_INFO, "Testing: %s (%s) + %s (%s) + %s (%s) - %d threads",
+          applog("", "Testing: %s (%s) + %s (%s) + %s (%s) - %d threads",
                  variant_name(cn[i][0]), variant_way(cn_config[variant[0]]),
                  variant_name(cn[i][1]), variant_way(cn_config[variant[1]]),
                  variant_name(cn[i][2]), variant_way(cn_config[variant[2]]),
@@ -943,7 +942,7 @@ void tune(void *input, int thr_id) {
       prefetch_l1 = prefetch_tune[i];
 
       if (thr_id == 0) {
-        applog(LOG_INFO, "Testing: %s (%s) + %s (%s) + %s (%s) - %d threads",
+        applog("", "Testing: %s (%s) + %s (%s) + %s (%s) - %d threads",
                variant_name(cn[i][0]), variant_way(cn_config[variant[0]]),
                variant_name(cn[i][1]), variant_way(cn_config[variant[1]]),
                variant_name(cn[i][2]), variant_way(cn_config[variant[2]]),
@@ -972,7 +971,7 @@ void tune(void *input, int thr_id) {
 
     if (thr_id == 0) {
       applog(
-          LOG_NOTICE,
+          CL_WHT,
           "Best config for rotation %02d.%d: %d %d %d %d %d %d | %d PF | -%d "
           "threads -> "
           "%.02lf H/s",
@@ -981,7 +980,7 @@ void tune(void *input, int thr_id) {
           thread_tune[i], best_hashrate);
       char *used = strdup("0 0 0 0 0 0");
       variants_used(cn[i], used);
-      applog(LOG_NOTICE, "%s -> %s (%s) + %s (%s) + %s (%s)", used,
+      applog(CL_WHT, "%s -> %s (%s) + %s (%s) + %s (%s)", used,
              variant_name(cn[i][0]), variant_way(cn_tune[i][cn_map[cn[i][0]]]),
              variant_name(cn[i][1]), variant_way(cn_tune[i][cn_map[cn[i][1]]]),
              variant_name(cn[i][2]), variant_way(cn_tune[i][cn_map[cn[i][2]]]));
@@ -990,7 +989,7 @@ void tune(void *input, int thr_id) {
   }
   if (thr_id == 0) {
     for (int i = 0; i < 40; i++) {
-      applog(LOG_NOTICE,
+      applog(CL_WHT,
              "Best config for rotation %02d.%d (%d %d %d): %d %d %d %d %d %d "
              "| %d PF | -%d threads",
              (i / 2) + 1, i % 2 + 1, cn[i][0], cn[i][1], cn[i][2],
@@ -1221,7 +1220,7 @@ void stress_test(void *input, int thr_id) {
       bench_hashes += hashes_done;
       bench_time += elapsed;
       if (thr_id == 0 && bench_time > 0.01) {
-        applog(LOG_INFO, "Stress testing! ~%.1lf H/s - CPU: %.2f C",
+        applog("", "Stress testing! ~%.1lf H/s - CPU: %.2f C",
                bench_hashes / bench_time * opt_n_threads, cpu_temp(0));
       }
       pthread_mutex_unlock(&stats_lock);

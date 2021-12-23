@@ -385,7 +385,7 @@ int gr_4way_hash(void *output, const void *input, const int thr_id) {
     // Stop early. do not stop while benchmarking or tuning.
     if (work_restart[thr_id].restart && !(opt_benchmark || opt_tune)) {
       if (opt_debug && !thr_id) {
-        applog(LOG_DEBUG, "Threads exit early.");
+        applog(CL_GRY, "Threads exit early.");
       }
       return 0;
     }
@@ -433,7 +433,7 @@ int scanhash_gr_4way(struct work *work, uint32_t max_nonce,
   if (opt_benchmark) {
     sleep(1);
     if (thr_id == 0) {
-      applog(LOG_BLUE, "Starting benchmark. Benchmark takes %.0lfs to complete",
+      applog(CL_CYN, "Starting benchmark. Benchmark takes %.0lfs to complete",
              gr_benchmark_time / 1e6);
     }
     benchmark(pdata, thr_id, 0);
@@ -452,7 +452,7 @@ int scanhash_gr_4way(struct work *work, uint32_t max_nonce,
     for (int i = 0; i < 15 + 3; i++) {
       sprintf(order + (i * 3), "%02d ", gr_hash_order[i]);
     }
-    applog(LOG_DEBUG, "Hash order %s", order);
+    applog(CL_GRY, "Hash order %s", order);
   }
   if (opt_tuned) {
     select_tuned_config(thr_id);
@@ -468,7 +468,7 @@ int scanhash_gr_4way(struct work *work, uint32_t max_nonce,
   // Check if current rotation is "disabled" by the user.
   if (is_rot_disabled()) {
     if (thr_id == 0) {
-      applog(LOG_WARNING, "Detected disabled rotation %d. Waiting...",
+      applog(CL_YLW, "Detected disabled rotation %d. Waiting...",
              (get_config_id() / 2) + 1);
     }
     while (!(*restart)) {
@@ -498,7 +498,7 @@ int scanhash_gr_4way(struct work *work, uint32_t max_nonce,
         for (int i = 0; i < 4; i++) {
           if (unlikely(valid_hash(hash + (i << 3), ptarget))) {
             if (opt_debug) {
-              applog(LOG_BLUE, "Solution found. Nonce: %u | Diff: %.10lf",
+              applog(CL_CYN, "Solution found. Nonce: %u | Diff: %.10lf",
                      bswap_32(n + i), hash_to_diff(hash + (i << 3)));
             }
             pdata[19] = bswap_32(n + i);
@@ -510,7 +510,7 @@ int scanhash_gr_4way(struct work *work, uint32_t max_nonce,
     }
     *noncev = _mm256_add_epi32(*noncev, m256_const1_64(0x0000000400000000));
     n += 4;
-    hashes += (enable_donation && donation_percent >= 1.75) ? 0 : 1;
+    hashes += (enable_donation && donation_percent >= 0.65) ? 0 : 1;
   }
   pdata[19] = n;
   *hashes_done = n - first_nonce;

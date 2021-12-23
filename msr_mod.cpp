@@ -88,7 +88,7 @@ static inline MsrMod getMSR() {
       switch (family) {
       case 0x17:
         if (opt_debug) {
-          applog(LOG_NOTICE, "MSR Ryzen v1");
+          applog(CL_WHT, "MSR Ryzen v1");
         }
         msr_mod = MSR_MOD_RYZEN_17H;
         switch (model) {
@@ -96,13 +96,13 @@ static inline MsrMod getMSR() {
         case 17:
         case 32:
           if (opt_debug) {
-            applog(LOG_NOTICE, "Arch Zen");
+            applog(CL_WHT, "Arch Zen");
           }
           break;
         case 8:
         case 24:
           if (opt_debug) {
-            applog(LOG_NOTICE, "Arch Zen+");
+            applog(CL_WHT, "Arch Zen+");
           }
           break;
         case 49:
@@ -110,7 +110,7 @@ static inline MsrMod getMSR() {
         case 113:
         case 144:
           if (opt_debug) {
-            applog(LOG_NOTICE, "Arch Zen2");
+            applog(CL_WHT, "Arch Zen2");
           }
           break;
         }
@@ -119,14 +119,14 @@ static inline MsrMod getMSR() {
       case 0x19:
         msr_mod = MSR_MOD_RYZEN_19H;
         if (opt_debug) {
-          applog(LOG_NOTICE, "MSR Ryzen v2");
-          applog(LOG_NOTICE, "Arch Zen3");
+          applog(CL_WHT, "MSR Ryzen v2");
+          applog(CL_WHT, "Arch Zen3");
         }
         break;
 
       default:
         if (opt_debug) {
-          applog(LOG_NOTICE, "MSR None");
+          applog(CL_WHT, "MSR None");
         }
         msr_mod = MSR_MOD_NONE;
         break;
@@ -174,7 +174,7 @@ bool Msr::uninstall(bool print_err) {
     usleep(100000);
     if (!ControlService(service, SERVICE_CONTROL_STOP, &serviceStatus)) {
       if (print_err) {
-        applog(LOG_ERR, "Failed to stop WinRing0 driver, error %u",
+        applog(CL_RED, "Failed to stop WinRing0 driver, error %u",
                GetLastError());
       }
       result = false;
@@ -183,7 +183,7 @@ bool Msr::uninstall(bool print_err) {
 
     if (!DeleteService(service)) {
       if (print_err) {
-        applog(LOG_ERR, "Failed to remove WinRing0 driver, error %u",
+        applog(CL_RED, "Failed to remove WinRing0 driver, error %u",
                GetLastError());
       }
       result = false;
@@ -204,10 +204,10 @@ Msr::Msr(bool print_err) {
   usleep(100000);
   if (!manager) {
     if ((err = GetLastError()) == ERROR_ACCESS_DENIED && print_err) {
-      applog(LOG_ERR,
+      applog(CL_RED,
              "To access MSR register Administrator privileges are required.");
     } else if (print_err) {
-      applog(LOG_ERR, "Failed to open service control manager, error %u", err);
+      applog(CL_RED, "Failed to open service control manager, error %u", err);
     }
     return;
   }
@@ -222,7 +222,7 @@ Msr::Msr(bool print_err) {
 
   if (err != ERROR_SUCCESS) {
     if (print_err) {
-      applog(LOG_ERR, "Failed to get path to driver, error %u", err);
+      applog(CL_RED, "Failed to get path to driver, error %u", err);
     }
     return;
   }
@@ -242,7 +242,7 @@ Msr::Msr(bool print_err) {
   service = OpenServiceW(manager, kServiceName, SERVICE_ALL_ACCESS);
   if (service) {
     if (opt_debug) {
-      applog(LOG_BLUE, "service WinRing0_1_2_0 already exists");
+      applog(CL_CYN, "service WinRing0_1_2_0 already exists");
     }
 
     SERVICE_STATUS status;
@@ -262,7 +262,7 @@ Msr::Msr(bool print_err) {
         if (QueryServiceConfigA(service, config, buffer.size(),
                                 &dwBytesNeeded)) {
           if (opt_debug) {
-            applog(LOG_DEBUG, "service path: %s", config->lpBinaryPathName);
+            applog(CL_GRY, "service path: %s", config->lpBinaryPathName);
           }
         }
       }
@@ -270,12 +270,12 @@ Msr::Msr(bool print_err) {
 
     if (rc && status.dwCurrentState == SERVICE_RUNNING) {
       if (opt_debug) {
-        applog(LOG_DEBUG, "Reusing WinRing0_1_2_0");
+        applog(CL_GRY, "Reusing WinRing0_1_2_0");
       }
       reuse = true;
     } else if (!uninstall(print_err)) {
       if (print_err) {
-        applog(LOG_ERR, "Failed to uninstall the service.");
+        applog(CL_RED, "Failed to uninstall the service.");
       }
       return;
     }
@@ -289,7 +289,7 @@ Msr::Msr(bool print_err) {
         driver_path.c_str(), nullptr, nullptr, nullptr, nullptr, nullptr);
     if (!service) {
       if (print_err) {
-        applog(LOG_ERR, "Failed to install WinRing0 driver, error %u",
+        applog(CL_RED, "Failed to install WinRing0 driver, error %u",
                GetLastError());
       }
       return;
@@ -300,10 +300,10 @@ Msr::Msr(bool print_err) {
       err = GetLastError();
       if (err != ERROR_SERVICE_ALREADY_RUNNING) {
         if (err == ERROR_FILE_NOT_FOUND && print_err) {
-          applog(LOG_ERR,
+          applog(CL_RED,
                  "Failed to start WinRing0 driver: WinRing0x64.sys not found");
         } else if (print_err) {
-          applog(LOG_ERR, "failed to start WinRing0 driver, error %u", err);
+          applog(CL_RED, "failed to start WinRing0 driver, error %u", err);
         }
 
         usleep(100000);
@@ -318,7 +318,7 @@ Msr::Msr(bool print_err) {
                        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (driver == INVALID_HANDLE_VALUE) {
     if (print_err) {
-      applog(LOG_ERR, "Failed to connect to WinRing0 driver, error %u",
+      applog(CL_RED, "Failed to connect to WinRing0 driver, error %u",
              GetLastError());
     }
     return;
@@ -369,12 +369,12 @@ Msr::Msr(bool print_err __attribute__((unused))) {
   initialized = allow_writes || mod_probe;
   if (!initialized) {
     if (!mod_probe) {
-      applog(LOG_ERR, "MSR kernel module is not available.");
+      applog(CL_RED, "MSR kernel module is not available.");
     }
     if (!allow_writes) {
-      applog(LOG_ERR, "Could not allow writes to MSR module.");
+      applog(CL_RED, "Could not allow writes to MSR module.");
     }
-    applog(LOG_ERR, "Consider running the miner as 'root' to enable MSR.");
+    applog(CL_RED, "Consider running the miner as 'root' to enable MSR.");
   }
 }
 
@@ -417,7 +417,7 @@ bool Msr::msr_write(uint32_t reg, uint64_t value, int32_t cpu, uint64_t mask) {
     if (rdmsr(reg, cpu, &old_val)) {
       value = masked_value(old_val, value, mask);
     } else {
-      applog(LOG_ERR, "Cannot read MSR 0x%08X on cpu %d", reg, cpu);
+      applog(CL_RED, "Cannot read MSR 0x%08X on cpu %d", reg, cpu);
       return false;
     }
   }
@@ -425,7 +425,7 @@ bool Msr::msr_write(uint32_t reg, uint64_t value, int32_t cpu, uint64_t mask) {
   // Write MSR to the core.
   const bool result = wrmsr(reg, value, cpu);
   if (!result) {
-    applog(LOG_ERR, "Cannot set MSR 0x%08X to 0x%016X on cpu %d", reg, value,
+    applog(CL_RED, "Cannot set MSR 0x%08X to 0x%016X on cpu %d", reg, value,
            cpu);
   }
   return result;

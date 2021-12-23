@@ -73,7 +73,7 @@ Options:
       --verify          enable additional time consuming start up tests
       --version         display version information and exit
       --log=FILE        path to the file that will include a copy of miner output. File is not cleared after restart.
-  -d, --donation=VAL    donation value in %. Default is 1.75
+  -d, --donation=VAL    donation value in %. Default is 0.65
   -y  --no-msr          disable application of MSR mod on the system
       --force-tune      Force tuning of the miner before mining even if tune config file exists.
       --no-tune         disable tuning of the miner before mining. Tuning takes ~69 (non-AVX2) or ~154 (AVX2+) minutes. 

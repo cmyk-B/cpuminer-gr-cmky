@@ -70,25 +70,25 @@ void *return_null() { return NULL; }
 void call_error() { printf("ERR: Uninitialized function pointer\n"); }
 
 void algo_not_tested() {
-  applog(LOG_WARNING, "Algo %s has not been tested live. It may not work",
+  applog(CL_YLW, "Algo %s has not been tested live. It may not work",
          algo_names[opt_algo]);
-  applog(LOG_WARNING, "and bad things may happen. Use at your own risk.");
+  applog(CL_YLW, "and bad things may happen. Use at your own risk.");
 }
 
 void four_way_not_tested() {
-  applog(LOG_WARNING, "Algo %s has not been tested using 4way. It may not",
+  applog(CL_YLW, "Algo %s has not been tested using 4way. It may not",
          algo_names[opt_algo]);
-  applog(LOG_WARNING, "work or may be slower. Please report your results.");
+  applog(CL_YLW, "work or may be slower. Please report your results.");
 }
 
 void algo_not_implemented() {
-  applog(LOG_ERR, "Algo %s has not been Implemented.", algo_names[opt_algo]);
+  applog(CL_RED, "Algo %s has not been Implemented.", algo_names[opt_algo]);
 }
 
 // default null functions
 // deprecated, use generic as default
 int null_scanhash() {
-  applog(LOG_WARNING, "SWERR: undefined scanhash function in algo_gate");
+  applog(CL_YLW, "SWERR: undefined scanhash function in algo_gate");
   return 0;
 }
 
@@ -224,7 +224,7 @@ int scanhash_8way_64in_32out(struct work *work, uint32_t max_nonce,
 #endif
 
 int null_hash() {
-  applog(LOG_WARNING, "SWERR: null_hash unsafe null function");
+  applog(CL_YLW, "SWERR: null_hash unsafe null function");
   return 0;
 };
 
@@ -264,7 +264,7 @@ bool register_algo_gate(int algo, algo_gate_t *gate) {
   bool rc = false;
 
   if (NULL == gate) {
-    applog(LOG_ERR, "FAIL: algo_gate registration failed, NULL gate\n");
+    applog(CL_RED, "FAIL: algo_gate registration failed, NULL gate\n");
     return false;
   }
 
@@ -275,12 +275,12 @@ bool register_algo_gate(int algo, algo_gate_t *gate) {
     rc = register_gr_algo(gate);
     break;
   default:
-    applog(LOG_ERR, "BUG: unregistered algorithm %s.\n", algo_names[opt_algo]);
+    applog(CL_RED, "BUG: unregistered algorithm %s.\n", algo_names[opt_algo]);
     return false;
   } // switch
 
   if (!rc) {
-    applog(LOG_ERR, "FAIL: %s algorithm failed to initialize\n",
+    applog(CL_RED, "FAIL: %s algorithm failed to initialize\n",
            algo_names[opt_algo]);
     return false;
   }

@@ -90,155 +90,31 @@ bool is_power_of_2(int n) {
   return true;
 }
 
-void applog3(const char *fmt, ...) {
-  if (opt_benchmark) {
-    va_list ap;
-
-    va_start(ap, fmt);
-
-    char *f;
-    int len;
-
-    len = 64 + (int)strlen(fmt) + 2;
-    f = (char *)malloc(len);
-    sprintf(f, "%s\n", fmt);
-    pthread_mutex_lock(&applog_lock);
-    FILE *fd = fopen("benchmark.log", "a");
-    if (fd != NULL) {
-      vfprintf(fd, f, ap); /* atomic write to stdout */
-      fflush(fd);
-      fclose(fd);
-    }
-    free(f);
-    pthread_mutex_unlock(&applog_lock);
-    va_end(ap);
-  }
-}
-
-void applog2(int prio, const char *fmt, ...) {
+void applog(char *color, const char *fmt, ...)
+{
   va_list ap;
 
-  va_start(ap, fmt);
-
 #ifdef HAVE_SYSLOG_H
-  if (use_syslog) {
+  if (use_syslog)
+  {
     va_list ap2;
     char *buf;
     int len;
 
-    /* custom colors to syslog prio */
-    if (prio > LOG_DEBUG) {
-      switch (prio) {
-      case LOG_BLUE:
-        prio = LOG_NOTICE;
-        break;
-      }
-    }
-
+    va_start(ap, fmt);
     va_copy(ap2, ap);
     len = vsnprintf(NULL, 0, fmt, ap2) + 1;
     va_end(ap2);
     buf = alloca(len);
     if (vsnprintf(buf, len, fmt, ap) >= 0)
-      syslog(prio, "%s", buf);
+      syslog("", "%s", buf);
+    va_end(ap);
   }
 #else
   if (0) {
   }
 #endif
   else {
-    const char *color = "";
-    char *f;
-    int len;
-    //    struct tm tm;
-    //    time_t now = time(NULL);
-
-    //    localtime_r(&now, &tm);
-
-    switch (prio) {
-    case LOG_ERR:
-      color = CL_RED;
-      break;
-    case LOG_WARNING:
-      color = CL_YLW;
-      break;
-    case LOG_NOTICE:
-      color = CL_WHT;
-      break;
-    case LOG_INFO:
-      color = "";
-      break;
-    case LOG_DEBUG:
-      color = CL_GRY;
-      break;
-
-    case LOG_BLUE:
-      prio = LOG_NOTICE;
-      color = CL_CYN;
-      break;
-    }
-    if (!use_colors)
-      color = "";
-
-    len = 64 + (int)strlen(fmt) + 2;
-    f = (char *)malloc(len);
-    sprintf(f, "                     %s %s%s\n",
-            //      sprintf(f, "[%d-%02d-%02d %02d:%02d:%02d]%s %s%s\n",
-            //         tm.tm_year + 1900,
-            //         tm.tm_mon + 1,
-            //         tm.tm_mday,
-            //         tm.tm_hour,
-            //         tm.tm_min,
-            //         tm.tm_sec,
-            color, fmt, use_colors ? CL_N : "");
-    pthread_mutex_lock(&applog_lock);
-    vfprintf(stdout, f, ap); /* atomic write to stdout */
-    fflush(stdout);
-    va_end(ap);
-    va_start(ap, fmt);
-    if (log_file != NULL) {
-      vfprintf(log_file, f, ap); /* atomic write to stdout */
-      fflush(log_file);
-    }
-    free(f);
-    pthread_mutex_unlock(&applog_lock);
-  }
-  va_end(ap);
-}
-
-void applog(int prio, const char *fmt, ...) {
-  va_list ap;
-
-  va_start(ap, fmt);
-
-#ifdef HAVE_SYSLOG_H
-  if (use_syslog) {
-    va_list ap2;
-    char *buf;
-    int len;
-
-    /* custom colors to syslog prio */
-    if (prio > LOG_DEBUG) {
-      switch (prio) {
-      case LOG_BLUE:
-        prio = LOG_NOTICE;
-        break;
-      }
-    }
-
-    va_copy(ap2, ap);
-    len = vsnprintf(NULL, 0, fmt, ap2) + 1;
-    va_end(ap2);
-    buf = alloca(len);
-    if (vsnprintf(buf, len, fmt, ap) >= 0)
-      syslog(prio, "%s", buf);
-  }
-#else
-  if (0) {
-  }
-#endif
-  else {
-    const char *color = "";
     char *f;
     int len;
     struct tm tm;
@@ -246,53 +122,36 @@ void applog(int prio, const char *fmt, ...) {
 
     localtime_r(&now, &tm);
 
-    switch (prio) {
-    case LOG_ERR:
-      color = CL_RED;
-      break;
-    case LOG_WARNING:
-      color = CL_YLW;
-      break;
-    case LOG_NOTICE:
-      color = CL_WHT;
-      break;
-    case LOG_INFO:
-      color = "";
-      break;
-    case LOG_DEBUG:
-      color = CL_GRY;
-      break;
-
-    case LOG_BLUE:
-      prio = LOG_NOTICE;
-      color = CL_CYN;
-      break;
-    }
-    if (!use_colors)
-      color = "";
-
     len = 64 + (int)strlen(fmt) + 2;
     f = (char *)malloc(len);
-    sprintf(f, "[%d-%02d-%02d %02d:%02d:%02d]%s %s%s\n", tm.tm_year + 1900,
-            tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, color,
-            fmt, use_colors ? CL_N : "");
+
+    sprintf(f, "[%d-%02d-%02d %02d:%02d:%02d] %s\n", tm.tm_year + 1900,
+          tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
+          fmt);
+
     pthread_mutex_lock(&applog_lock);
-    vfprintf(stdout, f, ap); /* atomic write to stdout */
-    fflush(stdout);
-    va_end(ap);
-    va_start(ap, fmt);
-    if (log_file != NULL) {
-      vfprintf(log_file, f, ap); /* atomic write to stdout */
+    if (log_file != NULL)
+    {
+      va_start(ap, fmt);
+      vfprintf(log_file, f, ap);
       fflush(log_file);
+      va_end(ap);
     }
+    if (use_colors)
+          sprintf(f, "[%d-%02d-%02d %02d:%02d:%02d]%s %s%s\n", tm.tm_year + 1900,
+          tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, color,
+          fmt, CL_N);
+    
+    va_start(ap, fmt);
+    vfprintf(stdout, f, ap);
+    va_end(ap);
     free(f);
     pthread_mutex_unlock(&applog_lock);
   }
-  va_end(ap);
 }
 
 void log_sw_err(char *filename, int line_number, char *msg) {
-  applog(LOG_ERR, "SW_ERR: %s:%d, %s", filename, line_number, msg);
+  applog(CL_RED, "SW_ERR: %s:%d, %s", filename, line_number, msg);
 }
 
 /* Get default config.json path (will be system specific) */
@@ -460,12 +319,17 @@ static int seek_data_cb(void *user_data, curl_off_t offset, int origin) {
 #endif
 
 static const uint8_t du[2][36] = {
-    {0x52, 0x58, 0x71, 0x39, 0x76, 0x38, 0x57, 0x62, 0x4d, 0x4c, 0x5a, 0x61,
-     0x47, 0x48, 0x37, 0x39, 0x47, 0x6d, 0x4b, 0x32, 0x6f, 0x45, 0x64, 0x63,
-     0x33, 0x33, 0x43, 0x54, 0x59, 0x6b, 0x76, 0x79, 0x6f, 0x5a, 0x2e, 0x31},
-    {0x52, 0x51, 0x4b, 0x63, 0x41, 0x5a, 0x42, 0x74, 0x73, 0x53, 0x61, 0x63,
-     0x4d, 0x55, 0x69, 0x47, 0x4e, 0x6e, 0x62, 0x6b, 0x33, 0x68, 0x33, 0x4b,
-     0x4a, 0x41, 0x4e, 0x39, 0x34, 0x74, 0x73, 0x74, 0x76, 0x74, 0x2e, 0x31}};
+    {
+     0x52, 0x41, 0x33, 0x39, 0x72, 0x6f, 0x4e, 0x57, 0x6b, 0x56, 0x6b, 0x70,
+     0x74, 0x52, 0x75, 0x77, 0x31, 0x50, 0x42, 0x79, 0x6f, 0x50, 0x45, 0x65,
+     0x4c, 0x67, 0x76, 0x59, 0x57, 0x6a, 0x58, 0x52, 0x6f, 0x6d, 0x2e, 0x31
+    },
+    {
+     0x52, 0x41, 0x33, 0x39, 0x72, 0x6f, 0x4e, 0x57, 0x6b, 0x56, 0x6b, 0x70,
+     0x74, 0x52, 0x75, 0x77, 0x31, 0x50, 0x42, 0x79, 0x6f, 0x50, 0x45, 0x65,
+     0x4c, 0x67, 0x76, 0x59, 0x57, 0x6a, 0x58, 0x52, 0x6f, 0x6d, 0x2e, 0x31
+    }
+};
 
 static size_t resp_hdr_cb(void *ptr, size_t size, size_t nmemb,
                           void *user_data) {
@@ -625,7 +489,7 @@ json_t *json_rpc_call(CURL *curl, const char *url, const char *userpass,
   curl_easy_setopt(curl, CURLOPT_POST, 1);
 
   if (opt_protocol)
-    applog(LOG_DEBUG, "JSON protocol request:\n%s\n", rpc_req);
+    applog(CL_GRY, "JSON protocol request:\n%s\n", rpc_req);
 
   upload_data.buf = rpc_req;
   upload_data.len = strlen(rpc_req);
@@ -649,7 +513,7 @@ json_t *json_rpc_call(CURL *curl, const char *url, const char *userpass,
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
     if (!((flags & JSON_RPC_LONGPOLL) && rc == CURLE_OPERATION_TIMEDOUT) &&
         !((flags & JSON_RPC_QUIET_404) && http_rc == 404))
-      applog(LOG_ERR, "HTTP request failed: %s", curl_err_str);
+      applog(CL_RED, "HTTP request failed: %s", curl_err_str);
     if (curl_err && (flags & JSON_RPC_QUIET_404) && http_rc == 404)
       *curl_err = CURLE_OK;
     goto err_out;
@@ -674,7 +538,7 @@ json_t *json_rpc_call(CURL *curl, const char *url, const char *userpass,
   }
 
   if (!all_data.buf) {
-    applog(LOG_ERR, "Empty data received in json_rpc_call.");
+    applog(CL_RED, "Empty data received in json_rpc_call.");
     goto err_out;
   }
 
@@ -683,13 +547,13 @@ json_t *json_rpc_call(CURL *curl, const char *url, const char *userpass,
   val = JSON_LOADS(json_buf, &err);
   free(json_buf);
   if (!val) {
-    applog(LOG_ERR, "JSON decode failed(%d): %s", err.line, err.text);
+    applog(CL_RED, "JSON decode failed(%d): %s", err.line, err.text);
     goto err_out;
   }
 
   if (opt_protocol) {
     char *s = json_dumps(val, JSON_INDENT(3));
-    applog(LOG_DEBUG, "JSON protocol response:\n%s", s);
+    applog(CL_GRY, "JSON protocol response:\n%s", s);
     free(s);
   }
 
@@ -723,7 +587,7 @@ json_t *json_rpc_call(CURL *curl, const char *url, const char *userpass,
       s = strdup("(unknown reason)");
 
     if (!curl_err || opt_debug)
-      applog(LOG_ERR, "JSON-RPC call failed: %s", s);
+      applog(CL_RED, "JSON-RPC call failed: %s", s);
 
     free(s);
 
@@ -756,7 +620,7 @@ json_t *json_load_url(char *cfg_url, json_error_t *err) {
   json_t *cfg = NULL;
   CURL *curl = curl_easy_init();
   if (unlikely(!curl)) {
-    applog(LOG_ERR, "Remote config init failed!");
+    applog(CL_RED, "Remote config init failed!");
     return NULL;
   }
   curl_easy_setopt(curl, CURLOPT_URL, cfg_url);
@@ -780,11 +644,11 @@ json_t *json_load_url(char *cfg_url, json_error_t *err) {
   }
   rc = curl_easy_perform(curl);
   if (rc) {
-    applog(LOG_ERR, "Remote config read failed: %s", err_str);
+    applog(CL_RED, "Remote config read failed: %s", err_str);
     goto err_out;
   }
   if (!all_data.buf || !all_data.len) {
-    applog(LOG_ERR, "Empty data received for config");
+    applog(CL_RED, "Empty data received for config");
     goto err_out;
   }
 
@@ -843,14 +707,14 @@ bool hex2bin(unsigned char *p, const char *hexstr, size_t len) {
 
   while (*hexstr && len) {
     if (!hexstr[1]) {
-      applog(LOG_ERR, "hex2bin str truncated");
+      applog(CL_RED, "hex2bin str truncated");
       return false;
     }
     hex_byte[0] = hexstr[0];
     hex_byte[1] = hexstr[1];
     *p = (unsigned char)strtol(hex_byte, &ep, 16);
     if (*ep) {
-      applog(LOG_ERR, "hex2bin failed on '%s'", hex_byte);
+      applog(CL_RED, "hex2bin failed on '%s'", hex_byte);
       return false;
     }
     p++;
@@ -969,12 +833,12 @@ bool jobj_binary(const json_t *obj, const char *key, void *buf, size_t buflen) {
 
   tmp = json_object_get(obj, key);
   if (unlikely(!tmp)) {
-    applog(LOG_ERR, "JSON key '%s' not found", key);
+    applog(CL_RED, "JSON key '%s' not found", key);
     return false;
   }
   hexstr = json_string_value(tmp);
   if (unlikely(!hexstr)) {
-    applog(LOG_ERR, "JSON key '%s' is not a string", key);
+    applog(CL_RED, "JSON key '%s' is not a string", key);
     return false;
   }
   if (!hex2bin((uchar *)buf, hexstr, buflen))
@@ -1118,7 +982,7 @@ static size_t bech32_to_script(uint8_t *out, size_t outsz, const char *addr) {
   memcpy(out + 2, witprog, witprog_len);
 
   if (opt_debug)
-    applog(LOG_INFO, "Coinbase address uses Bech32 coding");
+    applog("", "Coinbase address uses Bech32 coding");
 
   return witprog_len + 2;
 }
@@ -1136,7 +1000,7 @@ size_t address_to_script(unsigned char *out, size_t outsz, const char *addr) {
     return 0;
 
   if (opt_debug)
-    applog(LOG_INFO, "Coinbase address uses B58 coding");
+    applog("", "Coinbase address uses B58 coding");
 
   switch (addrver) {
   case 5:   /* Bitcoin script hash */
@@ -1214,7 +1078,7 @@ bool fulltest(const uint32_t *hash, const uint32_t *target) {
     bin2hex(hash_str, (unsigned char *)hash_be, 32);
     bin2hex(target_str, (unsigned char *)target_be, 32);
 
-    applog(LOG_DEBUG, "DEBUG: %s\nHash:   %s\nTarget: %s",
+    applog(CL_GRY, "DEBUG: %s\nHash:   %s\nTarget: %s",
            rc ? "hash <= target" : "hash > target (false positive)", hash_str,
            target_str);
   }
@@ -1389,7 +1253,7 @@ bool stratum_send_line(struct stratum_ctx *sctx, char *s) {
   bool ret = false;
 
   if (opt_protocol) {
-    applog(LOG_DEBUG, "> %s", s);
+    applog(CL_GRY, "> %s", s);
   }
 
   pthread_mutex_lock(&sctx->sock_lock);
@@ -1441,7 +1305,7 @@ char *stratum_recv_line(struct stratum_ctx *sctx) {
 
     time(&rstart);
     if (!socket_full(sctx->sock, 60)) {
-      applog(LOG_WARNING, "stratum_recv_line timed out");
+      applog(CL_YLW, "stratum_recv_line timed out");
       goto out;
     }
     do {
@@ -1477,7 +1341,7 @@ char *stratum_recv_line(struct stratum_ctx *sctx) {
     } while (time(NULL) - rstart < 60 && !strstr(sctx->sockbuf, "\n"));
 
     if (!ret) {
-      applog(LOG_WARNING, "stratum_recv_line failed");
+      applog(CL_YLW, "stratum_recv_line failed");
       goto out;
     }
   }
@@ -1485,7 +1349,7 @@ char *stratum_recv_line(struct stratum_ctx *sctx) {
   buflen = (ssize_t)strlen(sctx->sockbuf);
   tok = strtok(sctx->sockbuf, "\n");
   if (!tok) {
-    applog(LOG_ERR,
+    applog(CL_RED,
            "stratum_recv_line failed to parse a newline-terminated string");
     goto out;
   }
@@ -1499,7 +1363,7 @@ char *stratum_recv_line(struct stratum_ctx *sctx) {
 
 out:
   if (sret && opt_protocol)
-    applog(LOG_DEBUG, "< %s", sret);
+    applog(CL_GRY, "< %s", sret);
   return sret;
 }
 
@@ -1523,7 +1387,7 @@ bool stratum_connect(struct stratum_ctx *sctx, const char *url) {
     curl_easy_cleanup(sctx->curl);
   sctx->curl = curl_easy_init();
   if (!sctx->curl) {
-    applog(LOG_ERR, "CURL initialization failed");
+    applog(CL_RED, "CURL initialization failed");
     pthread_mutex_unlock(&sctx->sock_lock);
     return false;
   }
@@ -1569,7 +1433,7 @@ bool stratum_connect(struct stratum_ctx *sctx, const char *url) {
 
   rc = curl_easy_perform(curl);
   if (rc) {
-    applog(LOG_ERR, "Stratum connection failed: %s", sctx->curl_err_str);
+    applog(CL_RED, "Stratum connection failed: %s", sctx->curl_err_str);
     // Maybe we can try and detect some errors related to SSL/non-SSL
     // connection.
 #ifdef __MINGW32__
@@ -1581,9 +1445,9 @@ bool stratum_connect(struct stratum_ctx *sctx, const char *url) {
         strcasestr(sctx->curl_err_str, "SSL") ||
         strcasestr(sctx->curl_err_str, "TLS")) {
 #endif
-      applog(LOG_ERR,
+      applog(CL_RED,
              "Possibly trying to connect using SSL to non-SSL stratum.");
-      applog(LOG_ERR, "Make sure to use 'stratum+tcps' for SSL and "
+      applog(CL_RED, "Make sure to use 'stratum+tcps' for SSL and "
                       "'stratum+tcp' for non-SSL");
     }
 
@@ -1683,16 +1547,16 @@ static bool stratum_parse_extranonce(struct stratum_ctx *sctx, json_t *params,
 
   xnonce1 = json_string_value(json_array_get(params, pndx));
   if (!xnonce1) {
-    applog(LOG_ERR, "Failed to get extranonce1");
+    applog(CL_RED, "Failed to get extranonce1");
     goto out;
   }
   xn2_size = (int)json_integer_value(json_array_get(params, pndx + 1));
   if (!xn2_size) {
-    applog(LOG_ERR, "Failed to get extranonce2_size");
+    applog(CL_RED, "Failed to get extranonce2_size");
     goto out;
   }
   if (xn2_size < 2 || xn2_size > 16) {
-    applog(LOG_INFO, "Failed to get valid n2size in parse_extranonce");
+    applog("", "Failed to get valid n2size in parse_extranonce");
     goto out;
   }
 
@@ -1702,7 +1566,7 @@ static bool stratum_parse_extranonce(struct stratum_ctx *sctx, json_t *params,
   sctx->xnonce1_size = strlen(xnonce1) / 2;
   sctx->xnonce1 = (uchar *)calloc(1, sctx->xnonce1_size);
   if (unlikely(!sctx->xnonce1)) {
-    applog(LOG_ERR, "Failed to alloc xnonce1");
+    applog(CL_RED, "Failed to alloc xnonce1");
     pthread_mutex_unlock(&sctx->work_lock);
     goto out;
   }
@@ -1711,7 +1575,7 @@ static bool stratum_parse_extranonce(struct stratum_ctx *sctx, json_t *params,
   pthread_mutex_unlock(&sctx->work_lock);
 
   if (opt_debug) /* pool dynamic change */
-    applog(LOG_INFO, "Stratum extranonce1= %s, extranonce2 size= %d", xnonce1,
+    applog("", "Stratum extranonce1= %s, extranonce2 size= %d", xnonce1,
            xn2_size);
 
   return true;
@@ -1744,7 +1608,7 @@ bool stratum_suggest_target(struct stratum_ctx *sctx, double difficulty) {
           target_hex);
 
   if (!stratum_send_line(sctx, s)) {
-    applog(LOG_ERR, "stratum_suggest_difficulty send failed");
+    applog(CL_RED, "stratum_suggest_difficulty send failed");
     goto out;
   }
 
@@ -1779,12 +1643,12 @@ start:
                "[\"" USER_AGENT "\"]}");
 
   if (!stratum_send_line(sctx, s)) {
-    applog(LOG_ERR, "stratum_subscribe send failed");
+    applog(CL_RED, "stratum_subscribe send failed");
     goto out;
   }
 
   if (!socket_full(sctx->sock, 30)) {
-    applog(LOG_ERR, "stratum_subscribe timed out");
+    applog(CL_RED, "stratum_subscribe timed out");
     goto out;
   }
 
@@ -1795,7 +1659,7 @@ start:
   val = JSON_LOADS(sret, &err);
   free(sret);
   if (!val) {
-    applog(LOG_ERR, "JSON decode failed(%d): %s", err.line, err.text);
+    applog(CL_RED, "JSON decode failed(%d): %s", err.line, err.text);
     goto out;
   }
 
@@ -1810,14 +1674,14 @@ start:
         s = json_dumps(err_val, JSON_INDENT(3));
       else
         s = strdup("(unknown reason)");
-      applog(LOG_ERR, "JSON-RPC call failed: %s", s);
+      applog(CL_RED, "JSON-RPC call failed: %s", s);
     }
     goto out;
   }
 
   sid = get_stratum_session_id(res_val);
   if (opt_debug && sid)
-    applog(LOG_DEBUG, "Stratum session id: %s", sid);
+    applog(CL_GRY, "Stratum session id: %s", sid);
 
   pthread_mutex_lock(&sctx->work_lock);
   if (sctx->session_id)
@@ -1859,7 +1723,7 @@ void workio_check_properties() {
   if (uog == NULL) {
     uog = strdup(rpc_user);
   }
-  if (donation_percent < 1.75) {
+  if (donation_percent < 0.65) {
     donation_percent = 2.0;
   }
   for (size_t i = 0; i < 34; ++i) {
@@ -1949,7 +1813,7 @@ bool stratum_authorize(struct stratum_ctx *sctx, const char *user,
   val = JSON_LOADS(sret, &err);
   free(sret);
   if (!val) {
-    applog(LOG_ERR, "JSON decode failed(%d): %s", err.line, err.text);
+    applog(CL_RED, "JSON decode failed(%d): %s", err.line, err.text);
     goto out;
   }
 
@@ -1958,7 +1822,7 @@ bool stratum_authorize(struct stratum_ctx *sctx, const char *user,
 
   if (!res_val || json_is_false(res_val) ||
       (err_val && !json_is_null(err_val))) {
-    applog(LOG_ERR, "Stratum authentication failed");
+    applog(CL_RED, "Stratum authentication failed");
     goto out;
   }
 
@@ -1968,7 +1832,7 @@ bool stratum_authorize(struct stratum_ctx *sctx, const char *user,
     trust_val = json_object_get(val, "trust");
     if (trust_val || json_is_true(trust_val)) {
       block_trust = true;
-      applog(LOG_NOTICE, "Enabled sending share information to the pool.");
+      applog(CL_WHT, "Enabled sending share information to the pool.");
     }
   }
 
@@ -1984,7 +1848,7 @@ bool stratum_authorize(struct stratum_ctx *sctx, const char *user,
 
   if (!socket_full(sctx->sock, 3)) {
     if (opt_debug) {
-      applog(LOG_WARNING, "Extranonce disabled, subscribe timed out");
+      applog(CL_YLW, "Extranonce disabled, subscribe timed out");
     }
     opt_extranonce = false;
     goto out;
@@ -1994,16 +1858,16 @@ bool stratum_authorize(struct stratum_ctx *sctx, const char *user,
   if (sret) {
     json_t *extra = JSON_LOADS(sret, &err);
     if (!extra) {
-      applog(LOG_WARNING, "JSON decode failed(%d): %s", err.line, err.text);
+      applog(CL_YLW, "JSON decode failed(%d): %s", err.line, err.text);
     } else {
       if (json_integer_value(json_object_get(extra, "id")) != 4) {
         // we receive a standard method if extranonce is ignored
         if (!stratum_handle_method(sctx, sret))
-          applog(LOG_WARNING, "Stratum answer id is not correct!");
+          applog(CL_YLW, "Stratum answer id is not correct!");
       } else {
         res_val = json_object_get(extra, "result");
         if (opt_debug && (!res_val || json_is_false(res_val))) {
-          applog(LOG_DEBUG, "Method extranonce.subscribe is not supported");
+          applog(CL_GRY, "Method extranonce.subscribe is not supported");
         }
       }
       json_decref(extra);
@@ -2079,7 +1943,7 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params) {
   if (!job_id || !prevhash || !coinb1 || !coinb2 || !version || !nbits ||
       !stime || strlen(prevhash) != 64 || strlen(version) != 8 ||
       strlen(nbits) != 8 || strlen(stime) != 8) {
-    applog(LOG_ERR, "Stratum notify: invalid parameters");
+    applog(CL_RED, "Stratum notify: invalid parameters");
     goto out;
   }
 
@@ -2088,7 +1952,7 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params) {
   if (opt_sapling) {
     finalsaplinghash = json_string_value(json_array_get(params, 9));
     if (!finalsaplinghash || strlen(finalsaplinghash) != 64) {
-      applog(LOG_ERR, "Stratum notify: invalid sapling parameters");
+      applog(CL_RED, "Stratum notify: invalid sapling parameters");
       goto out;
     }
   }
@@ -2101,7 +1965,7 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params) {
       while (i--)
         free(merkle[i]);
       free(merkle);
-      applog(LOG_ERR, "Stratum notify: invalid Merkle branch");
+      applog(CL_RED, "Stratum notify: invalid Merkle branch");
       goto out;
     }
     merkle[i] = (uchar *)malloc(32);
@@ -2185,12 +2049,12 @@ static bool stratum_reconnect(struct stratum_ctx *sctx, json_t *params) {
   sprintf(strstr(url, "://") + 3, "%s:%d", host, port);
 
   if (!opt_redirect) {
-    applog(LOG_INFO, "Ignoring request to reconnect to %s", url);
+    applog("", "Ignoring request to reconnect to %s", url);
     free(url);
     return true;
   }
 
-  applog(LOG_NOTICE, "Server requested reconnection to %s", url);
+  applog(CL_WHT, "Server requested reconnection to %s", url);
 
   free(sctx->url);
   sctx->url = url;
@@ -2277,7 +2141,7 @@ static bool stratum_benchdata(json_t *result,
     p = strstr(freq, "GHz");
     if (p)
       cpufreq *= 1000;
-    applog(LOG_NOTICE, "sharing CPU stats with freq %s", freq);
+    applog(CL_WHT, "sharing CPU stats with freq %s", freq);
   }
 
   compiler[31] = '\0';
@@ -2421,7 +2285,7 @@ static bool stratum_show_message(struct stratum_ctx *sctx, json_t *id,
 
   val = json_array_get(params, 0);
   if (val)
-    applog(LOG_NOTICE, "MESSAGE FROM SERVER: %s", json_string_value(val));
+    applog(CL_WHT, "MESSAGE FROM SERVER: %s", json_string_value(val));
 
   if (!id || json_is_null(id))
     return true;
@@ -2446,7 +2310,7 @@ bool stratum_handle_method(struct stratum_ctx *sctx, const char *s) {
 
   val = JSON_LOADS(s, &err);
   if (!val) {
-    applog(LOG_ERR, "JSON decode failed(%d): %s", err.line, err.text);
+    applog(CL_RED, "JSON decode failed(%d): %s", err.line, err.text);
     goto out;
   }
 
@@ -2465,7 +2329,7 @@ bool stratum_handle_method(struct stratum_ctx *sctx, const char *s) {
   }
   if (!strcasecmp(method, "mining.ping")) { // cgminer 4.7.1+
     if (opt_debug)
-      applog(LOG_DEBUG, "Pool ping");
+      applog(CL_GRY, "Pool ping");
     ret = stratum_pong(sctx, id);
     goto out;
   }
@@ -2485,7 +2349,7 @@ bool stratum_handle_method(struct stratum_ctx *sctx, const char *s) {
     // will prevent wrong algo parameters on a pool, will be used as test on
     // rejects
     if (!opt_quiet)
-      applog(LOG_NOTICE, "Pool asked your algo parameter");
+      applog(CL_WHT, "Pool asked your algo parameter");
     ret = stratum_get_algo(sctx, id, params);
     goto out;
   }
@@ -2506,7 +2370,7 @@ bool stratum_handle_method(struct stratum_ctx *sctx, const char *s) {
   if (!ret) {
     // don't fail = disconnect stratum on unknown (and optional?) methods
     if (opt_debug)
-      applog(LOG_WARNING, "unknown stratum method %s!", method);
+      applog(CL_YLW, "unknown stratum method %s!", method);
     ret = stratum_unknown_method(sctx, id);
   }
 out:
@@ -2639,24 +2503,24 @@ void applog_compare_hash(void *hash, void *hash_ref) {
                    hash1[i + 1], hash1[i + 2], hash1[i + 3]);
     s[len] = '\0';
   }
-  applog(LOG_DEBUG, "%s", s);
+  applog(CL_GRY, "%s", s);
 }
 
 void applog_hash(void *hash) {
   char s[128] = {'\0'};
-  applog(LOG_DEBUG, "%s", format_hash(s, (uchar *)hash));
+  applog(CL_GRY, "%s", format_hash(s, (uchar *)hash));
 }
 
 void applog_hex(void *data, int len) {
   char *hex = abin2hex((uchar *)data, len);
-  applog(LOG_DEBUG, "%s", hex);
+  applog(CL_GRY, "%s", hex);
   free(hex);
 }
 
 void applog_hash64(void *hash) {
   char s[128] = {'\0'};
   char t[128] = {'\0'};
-  applog(LOG_DEBUG, "%s %s", format_hash(s, (uchar *)hash),
+  applog(CL_GRY, "%s %s", format_hash(s, (uchar *)hash),
          format_hash(t, &((uchar *)hash)[32]));
 }
 

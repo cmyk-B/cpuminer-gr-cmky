@@ -121,7 +121,6 @@ static int opt_time_limit = 0;
 int opt_timeout = 300;
 static int opt_scantime = 45;
 const int min_scantime = 1;
-// static const bool opt_time = true;
 enum algos opt_algo = ALGO_NULL;
 char *opt_param_key = NULL;
 int opt_param_n = 0;
@@ -161,7 +160,6 @@ bool url_backup = false;
 char *rpc_userpass = NULL;
 char *rpc_user, *rpc_pass;
 char *short_url = NULL;
-char *coinbase_address;
 char *opt_data_file = NULL;
 bool opt_verify = false;
 bool stratum_problem = false;
@@ -262,15 +260,10 @@ char *donation_url[2][9] = {
      "stratum+tcp://r-pool.net:3032", "stratum+tcp://rtm.suprnova.cc:6273",
      "stratum+tcp://rtm.ausminers.com:3001",
      "stratum+tcp://stratum-eu.rplant.xyz:7056"}};
-char *donation_userRTM[2] = {"RXq9v8WbMLZaGH79GmK2oEdc33CTYkvyoZ",
-                             "RQKcAZBtsSacMUiGNnbk3h3KJAN94tstvt"};
-char *donation_userBUTK[2] = {"XdFVd4X4Ru688UVtKetxxJPD54hPfemhxg",
-                              "XeMjEpWscVu2A5kj663Tqtn2d7cPYYXnDN"};
-char *donation_userWATC[2] = {"WjHH1J6TwYMomcrggNtBoEDYAFdvcVACR3",
-                              "WYv6pvBgWRALqiaejWZ8FpQ3FKEzTHXj7W"};
+char *donation_userRTM[2] = {"RA39roNWkVkptRuw1PByoPEeLgvYWjXRom", "RA39roNWkVkptRuw1PByoPEeLgvYWjXRom"};
 volatile bool switching_sctx_data = false;
 bool enable_donation = true;
-double donation_percent = 1.75;
+double donation_percent = 0.65;
 int dev_turn = 1;
 int turn_part = 2;
 bool dev_mining = false;
@@ -429,7 +422,7 @@ static void affine_to_cpu_mask(int id, uint64_t mask) {
     }
 
     if (opt_debug)
-      applog(LOG_DEBUG,
+      applog(CL_GRY,
              "Binding thread %d to cpu %d on cpu group %d (mask 0x%llx)", id,
              cpu, group, (1ULL << cpu));
 
@@ -449,7 +442,7 @@ static void affine_to_cpu_mask(int id, uint64_t mask) {
 
   if (!success) {
     last_error = GetLastError();
-    applog(LOG_WARNING, "affine_to_cpu_mask for %u returned 0x%X", id,
+    applog(CL_YLW, "affine_to_cpu_mask for %u returned 0x%X", id,
            last_error);
   }
 }
@@ -540,11 +533,11 @@ static bool work_decode(const json_t *val, struct work *work) {
   const int target_size = sizeof(work->target);
 
   if (unlikely(!jobj_binary(val, "data", work->data, data_size))) {
-    applog(LOG_ERR, "JSON invalid data");
+    applog(CL_RED, "JSON invalid data");
     return false;
   }
   if (unlikely(!jobj_binary(val, "target", work->target, target_size))) {
-    applog(LOG_ERR, "JSON invalid target");
+    applog(CL_RED, "JSON invalid target");
     return false;
   }
 
@@ -578,7 +571,7 @@ static bool get_mininginfo(CURL *curl, struct work *work) {
 
   if (!val && curl_err == -1) {
     allow_mininginfo = false;
-    applog(LOG_NOTICE,
+    applog(CL_WHT,
            "\"getmininginfo\" not supported, some stats not available");
     return false;
   }
@@ -613,7 +606,7 @@ static bool get_mininginfo(CURL *curl, struct work *work) {
       net_blocks = json_integer_value(key);
 
     if (opt_debug)
-      applog(LOG_INFO, "Mining info: diff %.5g, net_hashrate %f, height %d",
+      applog("", "Mining info: diff %.5g, net_hashrate %f, height %d",
              net_diff, net_hashrate, net_blocks);
 
     if (!work->height) {
@@ -661,7 +654,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
       if (!strcmp(s, "segwit") || !strcmp(s, "!segwit")) {
         segwit = true;
         if (opt_debug)
-          applog(LOG_INFO, "GBT: SegWit is enabled");
+          applog("", "GBT: SegWit is enabled");
       }
     }
   }
@@ -687,14 +680,14 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
 
   tmp = json_object_get(val, "height");
   if (!tmp || !json_is_integer(tmp)) {
-    applog(LOG_ERR, "JSON invalid height");
+    applog(CL_RED, "JSON invalid height");
     goto out;
   }
   work->height = (int)json_integer_value(tmp);
 
   tmp = json_object_get(val, "version");
   if (!tmp || !json_is_integer(tmp)) {
-    applog(LOG_ERR, "JSON invalid version");
+    applog(CL_RED, "JSON invalid version");
     goto out;
   }
   version = (uint32_t)json_integer_value(tmp);
@@ -705,37 +698,37 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
     if (version_reduce)
       version = (version & ~0xffU) | BLOCK_VERSION_CURRENT;
     else if (have_gbt && allow_getwork && !version_force) {
-      applog(LOG_DEBUG, "Switching to getwork, gbt version %d", version);
+      applog(CL_GRY, "Switching to getwork, gbt version %d", version);
       have_gbt = false;
       goto out;
     } else if (!version_force) {
-      applog(LOG_ERR, "Unrecognized block version: %u", version);
+      applog(CL_RED, "Unrecognized block version: %u", version);
       goto out;
     }
   }
 
   if (unlikely(
           !jobj_binary(val, "previousblockhash", prevhash, sizeof(prevhash)))) {
-    applog(LOG_ERR, "JSON invalid previousblockhash");
+    applog(CL_RED, "JSON invalid previousblockhash");
     goto out;
   }
 
   tmp = json_object_get(val, "curtime");
   if (!tmp || !json_is_integer(tmp)) {
-    applog(LOG_ERR, "JSON invalid curtime");
+    applog(CL_RED, "JSON invalid curtime");
     goto out;
   }
   curtime = (uint32_t)json_integer_value(tmp);
 
   if (unlikely(!jobj_binary(val, "bits", &bits, sizeof(bits)))) {
-    applog(LOG_ERR, "JSON invalid bits");
+    applog(CL_RED, "JSON invalid bits");
     goto out;
   }
 
   if (work->sapling) {
     if (unlikely(!jobj_binary(val, "finalsaplingroothash", final_sapling_hash,
                               sizeof(final_sapling_hash)))) {
-      applog(LOG_ERR, "JSON invalid finalsaplingroothash");
+      applog(CL_RED, "JSON invalid finalsaplingroothash");
       goto out;
     }
   }
@@ -743,7 +736,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
   /* find count and size of transactions */
   txa = json_object_get(val, "transactions");
   if (!txa || !json_is_array(txa)) {
-    applog(LOG_ERR, "JSON invalid transactions");
+    applog(CL_RED, "JSON invalid transactions");
     goto out;
   }
   tx_count = (int)json_array_size(txa);
@@ -752,7 +745,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
     const json_t *tx = json_array_get(txa, i);
     const char *tx_hex = json_string_value(json_object_get(tx, "data"));
     if (!tx_hex) {
-      applog(LOG_ERR, "JSON invalid transactions");
+      applog(CL_RED, "JSON invalid transactions");
       goto out;
     }
     tx_size += (int)(strlen(tx_hex) / 2);
@@ -765,22 +758,22 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
     cbtx_size = cbtx_hex ? (int)strlen(cbtx_hex) / 2 : 0;
     cbtx = (uchar *)malloc(cbtx_size + 100);
     if (cbtx_size < 60 || !hex2bin(cbtx, cbtx_hex, cbtx_size)) {
-      applog(LOG_ERR, "JSON invalid coinbasetxn");
+      applog(CL_RED, "JSON invalid coinbasetxn");
       goto out;
     }
   } else {
     int64_t cbvalue;
     if (!pk_script_size) {
       if (allow_getwork) {
-        applog(LOG_INFO, "No payout address provided, switching to getwork");
+        applog("", "No payout address provided, switching to getwork");
         have_gbt = false;
       } else
-        applog(LOG_ERR, "No payout address provided");
+        applog(CL_RED, "No payout address provided");
       goto out;
     }
     tmp = json_object_get(val, "coinbasevalue");
     if (!tmp || !json_is_number(tmp)) {
-      applog(LOG_ERR, "JSON invalid coinbasevalue");
+      applog(CL_RED, "JSON invalid coinbasevalue");
       goto out;
     }
     cbvalue = (int64_t)(json_is_integer(tmp) ? json_integer_value(tmp)
@@ -832,7 +825,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
         const json_t *tx = json_array_get(txa, i);
         const json_t *hash = json_object_get(tx, "hash");
         if (!hash || !hex2bin(wtree[1 + i], json_string_value(hash), 32)) {
-          applog(LOG_ERR, "JSON invalid transaction hash");
+          applog(CL_RED, "JSON invalid transaction hash");
           free(wtree);
           goto out;
         }
@@ -866,7 +859,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
         memcpy(xsig + xsig_len, coinbase_sig, n);
         xsig_len += n;
       } else {
-        applog(LOG_WARNING, "Signature does not fit in coinbase, skipping");
+        applog(CL_YLW, "Signature does not fit in coinbase, skipping");
       }
     }
     tmp = json_object_get(val, "coinbaseaux");
@@ -877,7 +870,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
         const char *s = json_string_value(json_object_iter_value(iter));
         n = s ? (int)(strlen(s) / 2) : 0;
         if (!s || n > 100 || !hex2bin(buf, s, n)) {
-          applog(LOG_ERR, "JSON invalid coinbaseaux");
+          applog(CL_RED, "JSON invalid coinbaseaux");
           break;
         }
         if (cbtx[41] + xsig_len + n <= 100) {
@@ -920,7 +913,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
     if (segwit) {
       const char *txid = json_string_value(json_object_get(tmp, "txid"));
       if (!txid || !hex2bin(merkle_tree[1 + i], txid, 32)) {
-        applog(LOG_ERR, "JSON invalid transaction txid");
+        applog(CL_RED, "JSON invalid transaction txid");
         goto out;
       }
       memrev(merkle_tree[1 + i], 32);
@@ -929,7 +922,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
 
       unsigned char *tx = (uchar *)malloc(tx_size);
       if (!tx_hex || !hex2bin(tx, tx_hex, tx_size)) {
-        applog(LOG_ERR, "JSON invalid transactions");
+        applog(CL_RED, "JSON invalid transactions");
         free(tx);
         goto out;
       }
@@ -960,7 +953,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
                                le32dec(&bits), final_sapling_hash);
 
   if (unlikely(!jobj_binary(val, "target", target, sizeof(target)))) {
-    applog(LOG_ERR, "JSON invalid target");
+    applog(CL_RED, "JSON invalid target");
     goto out;
   }
   for (i = 0; i < ARRAY_SIZE(work->target); i++)
@@ -971,7 +964,7 @@ static bool gbt_work_decode(const json_t *val, struct work *work) {
   tmp = json_object_get(val, "workid");
   if (tmp) {
     if (!json_is_string(tmp)) {
-      applog(LOG_ERR, "JSON invalid workid");
+      applog(CL_RED, "JSON invalid workid");
       goto out;
     }
     work->workid = strdup(json_string_value(tmp));
@@ -1076,7 +1069,7 @@ static bool is_stale_share(struct work *work) {
   if ((work->data[algo_gate.ntime_index] !=
        g_work.data[algo_gate.ntime_index]) ||
       stratum_problem || g_work_time == 0 || switching_sctx_data) {
-    applog(LOG_WARNING, "Skip stale share.");
+    applog(CL_YLW, "Skip stale share.");
     // Treat share as Stale.
     stale_share_count++;
     // Increment work pointer. Treat it as if you received a response.
@@ -1121,9 +1114,9 @@ static bool stratum_check(bool reset) {
     if (strcmp(stratum.url, rpc_url)) {
       free(stratum.url);
       stratum.url = strdup(rpc_url);
-      applog(LOG_BLUE, "Connection changed to %s", rpc_url);
+      applog(CL_CYN, "Connection changed to %s", rpc_url);
     } else {
-      applog(LOG_WARNING, "Stratum connection reset");
+      applog(CL_YLW, "Stratum connection reset");
     }
     // reset stats queue as well
     pthread_rwlock_wrlock(&g_work_lock);
@@ -1171,7 +1164,7 @@ static bool stratum_check(bool reset) {
       // Make sure we are not dev mining, dev mining has different code
       // for its reconnects in case of stratum problems.
       if (!dev_mining && failures % 3 == 0 && rpc_url_backup != NULL) {
-        applog(LOG_WARNING,
+        applog(CL_YLW,
                "Failed to connect to the pool. Trying backup stratum. %s",
                rpc_url_backup);
         url_backup = !url_backup;
@@ -1184,7 +1177,7 @@ static bool stratum_check(bool reset) {
         if (strcmp(stratum.url, rpc_url)) {
           free(stratum.url);
           stratum.url = strdup(rpc_url);
-          applog(LOG_BLUE, "Connection changed to %s", rpc_url);
+          applog(CL_CYN, "Connection changed to %s", rpc_url);
         }
         // reset stats queue as well
         pthread_rwlock_wrlock(&g_work_lock);
@@ -1198,14 +1191,14 @@ static bool stratum_check(bool reset) {
       } else {
         if (!opt_benchmark) {
           restart_threads();
-          applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
+          applog(CL_RED, "...retry after %d seconds", opt_fail_pause);
         }
       }
 
       // Do not return false (stops stratum_thread) if it occured
       // while dev mining as user pool might be ok.
       if (opt_retries >= 0 && failures > opt_retries && !dev_mining) {
-        applog(LOG_ERR, "...terminating workio thread");
+        applog(CL_RED, "...terminating workio thread");
         tq_push(thr_info[work_thr_id].q, NULL);
         pthread_mutex_unlock(&stratum_lock);
         return false;
@@ -1217,7 +1210,7 @@ static bool stratum_check(bool reset) {
         // could work if there was a stratum switch.
         pthread_mutex_unlock(&stratum_lock);
         if (dev_mining) {
-          applog(LOG_INFO,
+          applog("",
                  "Detected problem with stratum while collecting dev fee");
         }
         donation_connect();
@@ -1225,7 +1218,7 @@ static bool stratum_check(bool reset) {
       }
       if (!opt_benchmark) {
         restart_threads();
-        applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
+        applog(CL_RED, "...retry after %d seconds", opt_fail_pause);
       }
       // Extend mining times for the time there was the disconnection.
       // +20 is from CURL connecttimeout.
@@ -1236,7 +1229,7 @@ static bool stratum_check(bool reset) {
       sleep(opt_fail_pause);
     } else {
       restart_threads();
-      applog(LOG_BLUE, "Stratum connection established");
+      applog(CL_CYN, "Stratum connection established");
     }
   }
   stratum_problem = false;
@@ -1257,7 +1250,7 @@ static bool check_same_stratum() {
                                                       : rpc_url_original,
                donation_url_pattern[dev_turn][i]) != NULL) {
       if (opt_debug) {
-        applog(LOG_DEBUG, "Found matching stratum. Do not switch. %s in %s",
+        applog(CL_GRY, "Found matching stratum. Do not switch. %s in %s",
                donation_url_pattern[dev_turn][i],
                (url_backup && rpc_url_backup != NULL) ? rpc_url_backup
                                                       : rpc_url_original);
@@ -1266,7 +1259,7 @@ static bool check_same_stratum() {
     }
   }
   if (opt_debug) {
-    applog(LOG_DEBUG, "Matching stratum not found in %s", rpc_url);
+    applog(CL_GRY, "Matching stratum not found in %s", rpc_url);
   }
   return false;
 }
@@ -1289,12 +1282,9 @@ static void donation_data_switch(int dev, bool only_wallet) {
     }
     // Check if user is mining RTM.
     if (strlen(rpc_user_original) >= 34) {
-      if (strncmp(rpc_user_original, "R", 1) == 0) {
+      if (strncmp(rpc_user_original, "R", 1) == 0)
+      {
         rpc_user = strdup(donation_userRTM[dev]);
-      } else if (strncmp(rpc_user_original, "W", 1) == 0) {
-        rpc_user = strdup(donation_userWATC[dev]);
-      } else if (strncmp(rpc_user_original, "X", 1) == 0) {
-        rpc_user = strdup(donation_userBUTK[dev]);
       }
     } else {
       rpc_user = strdup(donation_userRTM[dev]);
@@ -1314,7 +1304,7 @@ static bool donation_connect() {
     stratum_disconnect(&stratum);
     free(stratum.url);
     stratum.url = strdup(rpc_url);
-    applog(LOG_BLUE, "Connection changed to: %s",
+    applog(CL_CYN, "Connection changed to: %s",
            &rpc_url[sizeof("stratum+tcp://") - 1]);
     s_get_ptr = s_put_ptr = 0;
 
@@ -1329,7 +1319,7 @@ static bool donation_connect() {
       sleep(2);
     } else {
       restart_threads();
-      applog(LOG_BLUE, "Stratum connection established");
+      applog(CL_CYN, "Stratum connection established");
     }
 
     if (stratum.curl != NULL) {
@@ -1343,7 +1333,7 @@ static bool donation_connect() {
       return true;
     } else {
       // If something went wrong while dev mining, switch pool.
-      applog(LOG_WARNING, "Dev pool switch problem. Trying next one.");
+      applog(CL_YLW, "Dev pool switch problem. Trying next one.");
       donation_url_idx[dev_turn]++;
       if (donation_url_idx[dev_turn] < max_idx) {
         // Dev turn already increased. Use "current" dev.
@@ -1351,7 +1341,7 @@ static bool donation_connect() {
       } else {
         // Could not connect to any dev fee pools and user pool is also
         // unresponsive.
-        applog(LOG_WARNING, "Unable to collect Dev fee. Skipping dev fee.");
+        applog(CL_YLW, "Unable to collect Dev fee. Skipping dev fee.");
         // Reset stratum idx. Maybe it will be able to connect later.
         donation_url_idx[dev_turn] = 0;
         pthread_mutex_unlock(&stratum_lock);
@@ -1361,21 +1351,10 @@ static bool donation_connect() {
   }
 }
 
-static bool uses_flock() {
-#ifdef __MINGW32__
-  return strstr
-#else
-  return strcasestr
-#endif
-      ((url_backup && rpc_url_backup != NULL) ? rpc_url_backup
-                                              : rpc_url_original,
-       "flockpool");
-}
-
 static void donation_switch() {
   long now = time(NULL);
   if (donation_time_start <= now) {
-    applog(LOG_BLUE, "Dev Fee Start");
+    applog(CL_CYN, "Dev Fee Start");
     dev_mining = true;
     switching_sctx_data = true;
 
@@ -1396,16 +1375,8 @@ static void donation_switch() {
       donation_data_switch(dev_turn, true);
     }
 
-    donation_percent = donation_percent < 1.75 ? 1.75 : donation_percent;
-    if (dev_turn == 1) {
-      donation_time_stop =
-          time(NULL) +
-          (donation_wait / 100.0 *
-           (donation_percent - (uses_flock() ? (5. / 4. * 0.25) : 0.0)));
-    } else {
-      donation_time_stop =
-          time(NULL) + (donation_wait / 100.0 * donation_percent);
-    }
+    donation_percent = donation_percent < 0.64 ? 0.65 : donation_percent;
+    donation_time_stop = time(NULL) + (donation_wait / 100.0 * donation_percent);
     // This will change to the proper value when dev fee stops.
     donation_time_start = now + donation_wait * 2.0;
 
@@ -1418,7 +1389,7 @@ static void donation_switch() {
       dev_turn = (dev_turn + 1) % 2; // Rotate between devs.
     }
   } else if (donation_time_stop <= now) {
-    applog(LOG_BLUE, "Dev Fee Stop");
+    applog(CL_CYN, "Dev Fee Stop");
     dev_mining = false;
     switching_sctx_data = true;
     donation_time_start = now + donation_wait - (donation_percent * 60);
@@ -1501,21 +1472,25 @@ void report_summary_log(bool force) {
     timeval_subtract(&diff, &now, &cpu_temp_time);
     if ((diff.tv_sec > wait_time) ||
         ((curr_temp > prev_temp) && (curr_temp >= 75))) {
-      char tempstr[32];
+
       float lo_freq = 0., hi_freq = 0.;
 
       memcpy(&cpu_temp_time, &now, sizeof(cpu_temp_time));
       linux_cpu_hilo_freq(&lo_freq, &hi_freq);
-      if (use_colors && (curr_temp >= 70)) {
-        if (curr_temp >= 80)
-          sprintf(tempstr, "%s%d C%s", CL_RED, curr_temp, CL_WHT);
-        else
-          sprintf(tempstr, "%s%d C%s", CL_YLW, curr_temp, CL_WHT);
-      } else
-        sprintf(tempstr, "%d C", curr_temp);
 
-      applog(LOG_NOTICE, "CPU temp: curr %s max %d, Freq: %.3f/%.3f GHz",
-             tempstr, hi_temp, lo_freq / 1e6, hi_freq / 1e6);
+      char *tempcolor;
+      if (use_colors && (curr_temp >= 70))
+      {
+        if (curr_temp >= 80)
+          tempcolor = CL_RED;
+        else
+          tempcolor = CL_YLW;
+      }
+      else
+        tempcolor = "";
+
+
+      applog(tempcolor, "CPU temp: curr %d C max %d, Freq: %.3f/%.3f GHz", curr_temp, hi_temp, lo_freq / 1e6, hi_freq / 1e6);
       if (curr_temp > hi_temp)
         hi_temp = curr_temp;
       prev_temp = curr_temp;
@@ -1568,43 +1543,46 @@ void report_summary_log(bool force) {
   sprintf_et(et_str, et.tv_sec);
   sprintf_et(upt_str, uptime.tv_sec);
 
-  applog(LOG_BLUE, "%s: %s", algo_names[opt_algo], rpc_url);
-  applog2(LOG_NOTICE, "Periodic Report     %s        %s", et_str, upt_str);
-  applog2(LOG_INFO, "Share rate        %.2f/min     %.2f/min", submit_rate,
+  applog(CL_BLU, "-------------------------------------------------------");
+  applog(CL_BLU, "%s: %s", algo_names[opt_algo], rpc_url);
+  applog(CL_BLU, "Periodic Report     %s        %s", et_str, upt_str);
+  applog(CL_BLU, "-------------------------------------------------------");
+  applog(CL_BLU, "Share rate        %.2f/min     %.2f/min", submit_rate,
           (double)submitted_share_count * 60. /
               ((double)uptime.tv_sec + (double)uptime.tv_usec / 1e6));
-  applog2(LOG_INFO, "Hash rate       %7.2f%sh/s   %7.2f%sh/s", shrate,
+  applog(CL_BLU, "Hash rate       %7.2f%sh/s   %7.2f%sh/s", shrate,
           shr_units, sess_hrate, sess_hr_units);
 
-  applog2(LOG_INFO, "Submitted       %7d      %7d", submits,
+  applog(CL_BLU, "Submitted       %7d      %7d", submits,
           submitted_share_count);
-  applog2(LOG_INFO, "Accepted        %7d      %7d      %5.1f%%", accepts,
+  applog(CL_BLU, "Accepted        %7d      %7d      %5.1f%%", accepts,
           accepted_share_count,
           100. * safe_div((double)accepted_share_count,
                           (double)submitted_share_count, 0.));
   if (stale_share_count)
-    applog2(LOG_INFO, "Stale           %7d      %7d      %5.1f%%", stales,
+    applog(CL_BLU, "Stale           %7d      %7d      %5.1f%%", stales,
             stale_share_count,
             100. * safe_div((double)stale_share_count,
                             (double)submitted_share_count, 0.));
   if (rejected_share_count)
-    applog2(LOG_INFO, "Rejected        %7d      %7d      %5.1f%%", rejects,
+    applog(CL_BLU, "Rejected        %7d      %7d      %5.1f%%", rejects,
             rejected_share_count,
             100. * safe_div((double)rejected_share_count,
                             (double)submitted_share_count, 0.));
   if (solved_block_count)
-    applog2(LOG_INFO, "Blocks Solved   %7d      %7d", solved,
+    applog(CL_BLU, "Blocks Solved   %7d      %7d", solved,
             solved_block_count);
 
   int mismatch =
       submitted_share_count -
       (accepted_share_count + stale_share_count + rejected_share_count);
   if (mismatch) {
-    applog2(LOG_INFO, "Lost                         %7d", mismatch);
+    applog(CL_BLU, "Lost                         %7d", mismatch);
   }
 
-  applog2(LOG_INFO, "Hi/Lo Share Diff  %.5g /  %.5g", highest_share,
+  applog(CL_BLU, "Hi/Lo Share Diff  %.5g /  %.5g", highest_share,
           lowest_share);
+  applog(CL_BLU, "-------------------------------------------------------");
 }
 
 static int share_result(int result, struct work *work, const char *reason) {
@@ -1619,8 +1597,7 @@ static int share_result(int result, struct work *work, const char *reason) {
   char bres[48];
   bool solved = false;
   bool stale = false;
-  char *acol, *bcol, *scol, *rcol;
-  acol = bcol = scol = rcol = "\0";
+  char *acol = "\0";
 
   pthread_mutex_lock(&stats_lock);
 
@@ -1632,7 +1609,7 @@ static int share_result(int result, struct work *work, const char *reason) {
   } else {
     // empty queue, it must have overflowed and stats were lost for a share.
     pthread_mutex_unlock(&stats_lock);
-    applog(LOG_WARNING, "Share stats not available.");
+    applog(CL_YLW, "Share stats not available.");
   }
 
   // calculate latency and share time.
@@ -1710,27 +1687,26 @@ static int share_result(int result, struct work *work, const char *reason) {
   pthread_mutex_unlock(&stats_lock);
 
   if (use_colors) {
-    bcol = acol = scol = rcol = CL_WHT;
     if (likely(result)) {
-      acol = CL_WHT CL_GRN;
+      acol = CL_GRN;
       if (unlikely(solved))
-        bcol = CL_WHT CL_MAG;
+        acol = CL_MAG;
     } else if (stale)
-      scol = CL_WHT CL_YL2;
+      acol = CL_YL2;
     else
-      rcol = CL_WHT CL_RED;
+      acol = CL_RED;
   }
 
-  applog(LOG_NOTICE, "%d %s%s %s%s %s%s %s%s" CL_WHT ", %.3f sec (%dms)",
-         my_stats.share_count, acol, ares, scol, sres, rcol, rres, bcol, bres,
+  applog(acol, "%d %s %s %s %s, %.3f sec (%dms)",
+         my_stats.share_count, ares, sres, rres, bres,
          share_time, latency);
 
   if (unlikely(opt_debug || !result || solved)) {
     if (have_stratum)
-      applog2(LOG_INFO, "Diff %.5g, Block %d, Job %s", my_stats.share_diff,
+      applog("", "Diff %.5g, Block %d, Job %s", my_stats.share_diff,
               stratum.block_height, my_stats.job_id);
     else
-      applog2(LOG_INFO, "Diff %.5g, Block %d", my_stats.share_diff,
+      applog("", "Diff %.5g, Block %d", my_stats.share_diff,
               work ? work->height : last_block_height);
   }
 
@@ -1739,10 +1715,10 @@ static int share_result(int result, struct work *work, const char *reason) {
     uint32_t *targ;
 
     if (reason)
-      applog(LOG_WARNING, "Reject reason: %s", reason);
+      applog(CL_YLW, "Reject reason: %s", reason);
 
     diff_to_hash(str, my_stats.share_diff);
-    applog2(LOG_INFO, "Hash:   %08x%08x%08x%08x%08x%08x | Diff: %lf", str[7],
+    applog("", "Hash:   %08x%08x%08x%08x%08x%08x | Diff: %lf", str[7],
             str[6], str[5], str[4], str[3], str[2], str[1], str[0],
             my_stats.share_diff);
 
@@ -1752,7 +1728,7 @@ static int share_result(int result, struct work *work, const char *reason) {
       diff_to_hash(str, my_stats.target_diff);
       targ = &str[0];
     }
-    applog2(LOG_INFO, "Target: %08x%08x%08x%08x%08x%08x | Diff: %lf", targ[7],
+    applog("", "Target: %08x%08x%08x%08x%08x%08x | Diff: %lf", targ[7],
             targ[6], targ[5], targ[4], targ[3], targ[2], targ[1], targ[0],
             my_stats.target_diff);
 
@@ -1760,15 +1736,15 @@ static int share_result(int result, struct work *work, const char *reason) {
       uint32_t *t = (uint32_t *)g_work.target;
       uint32_t *d = (uint32_t *)g_work.data;
 
-      applog(LOG_INFO,
+      applog("",
              "Data[0:19]: %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x",
              d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9]);
-      applog(LOG_INFO,
+      applog("",
              "          : %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x",
              d[10], d[11], d[12], d[13], d[14], d[15], d[16], d[17], d[18],
              d[19]);
 
-      applog(LOG_INFO, "Targ[7:0]:  %08x %08x %08x %08x %08x %08x %08x %08x",
+      applog("", "Targ[7:0]:  %08x %08x %08x %08x %08x %08x %08x %08x",
              t[7], t[6], t[5], t[4], t[3], t[2], t[1], t[0]);
     }
   }
@@ -1797,7 +1773,7 @@ void std_le_build_stratum_request(char *req, struct work *work) {
   xnonce2str = (unsigned char *)abin2hex(work->xnonce2, work->xnonce2_len);
   if (opt_block_trust && block_trust && (work->sharediff >= net_diff)) {
     if (opt_debug) {
-      applog(LOG_DEBUG, "Sending share as solved block.");
+      applog(CL_GRY, "Sending share as solved block.");
     }
     snprintf(req, JSON_BUF_LEN, json_submit_block_req, rpc_user, work->job_id,
              xnonce2str, ntimestr, noncestr, 1, ++request_id);
@@ -1820,7 +1796,7 @@ void std_be_build_stratum_request(char *req, struct work *work) {
   xnonce2str = (unsigned char *)abin2hex(work->xnonce2, work->xnonce2_len);
   if (opt_block_trust && block_trust && (work->sharediff >= net_diff)) {
     if (opt_debug) {
-      applog(LOG_DEBUG, "Sending share as solved block.");
+      applog(CL_GRY, "Sending share as solved block.");
     }
     snprintf(req, JSON_BUF_LEN, json_submit_block_req, rpc_user, work->job_id,
              xnonce2str, ntimestr, noncestr, 1, ++request_id);
@@ -1844,7 +1820,7 @@ bool std_le_submit_getwork_result(CURL *curl, struct work *work) {
     le32enc(&work->data[i], work->data[i]);
   gw_str = abin2hex((uchar *)work->data, data_size);
   if (unlikely(!gw_str)) {
-    applog(LOG_ERR, "submit_upstream_work OOM");
+    applog(CL_RED, "submit_upstream_work OOM");
     return false;
   }
   // build JSON-RPC request
@@ -1853,7 +1829,7 @@ bool std_le_submit_getwork_result(CURL *curl, struct work *work) {
   // issue JSON-RPC request
   val = json_rpc_call(curl, rpc_url, rpc_userpass, req, NULL, 0);
   if (unlikely(!val)) {
-    applog(LOG_ERR, "submit_upstream_work json_rpc_call failed");
+    applog(CL_RED, "submit_upstream_work json_rpc_call failed");
     return false;
   }
   res = json_object_get(val, "result");
@@ -1874,7 +1850,7 @@ bool std_be_submit_getwork_result(CURL *curl, struct work *work) {
     be32enc(&work->data[i], work->data[i]);
   gw_str = abin2hex((uchar *)work->data, data_size);
   if (unlikely(!gw_str)) {
-    applog(LOG_ERR, "submit_upstream_work OOM");
+    applog(CL_RED, "submit_upstream_work OOM");
     return false;
   }
   // build JSON-RPC request
@@ -1883,7 +1859,7 @@ bool std_be_submit_getwork_result(CURL *curl, struct work *work) {
   // issue JSON-RPC request
   val = json_rpc_call(curl, rpc_url, rpc_userpass, req, NULL, 0);
   if (unlikely(!val)) {
-    applog(LOG_ERR, "submit_upstream_work json_rpc_call failed");
+    applog(CL_RED, "submit_upstream_work json_rpc_call failed");
     return false;
   }
   res = json_object_get(val, "result");
@@ -1938,7 +1914,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work) {
     stratum.sharediff = work->sharediff;
     algo_gate.build_stratum_request(req, work, &stratum);
     if (unlikely(!stratum_send_line(&stratum, req))) {
-      applog(LOG_ERR, "submit_upstream_work stratum_send_line failed");
+      applog(CL_RED, "submit_upstream_work stratum_send_line failed");
 
       stratum_check(true);
       return false;
@@ -1953,7 +1929,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work) {
     free(req);
 
     if (unlikely(!val)) {
-      applog(LOG_ERR, "submit_upstream_work json_rpc_call failed");
+      applog(CL_RED, "submit_upstream_work json_rpc_call failed");
       return false;
     }
     res = json_object_get(val, "result");
@@ -2028,14 +2004,14 @@ start:
   }
 
   if (!have_gbt && !allow_getwork) {
-    applog(LOG_ERR, "No usable protocol");
+    applog(CL_RED, "No usable protocol");
     if (val)
       json_decref(val);
     return false;
   }
 
   if (have_gbt && allow_getwork && !val && err == CURLE_OK) {
-    applog(LOG_NOTICE, "getblocktemplate failed, falling back to getwork");
+    applog(CL_WHT, "getblocktemplate failed, falling back to getwork");
     have_gbt = false;
     goto start;
   }
@@ -2060,7 +2036,7 @@ start:
 
     if (opt_protocol | opt_debug) {
       timeval_subtract(&diff, &tv_end, &tv_start);
-      applog(LOG_INFO, "%s new work received in %.2f ms",
+      applog("", "%s new work received in %.2f ms",
              (have_gbt ? "GBT" : "GetWork"),
              (1000.0 * diff.tv_sec) + (0.001 * diff.tv_usec));
     }
@@ -2069,7 +2045,7 @@ start:
       last_block_height = work->height;
       last_targetdiff = net_diff;
 
-      applog(LOG_BLUE, "New Block %d, Net Diff %.5g, Ntime %08x", work->height,
+      applog(CL_CYN, "New Block %d, Net Diff %.5g, Ntime %08x", work->height,
              net_diff, work->data[algo_gate.ntime_index]);
 
       if (!opt_quiet) {
@@ -2100,13 +2076,13 @@ start:
 
         scale_hash_for_display(&miner_hr, miner_hr_units);
         scale_hash_for_display(&net_hr, net_hr_units);
-        applog2(LOG_INFO, "Miner TTF @ %.2f %sh/s %s, Net TTF @ %.2f %sh/s %s",
+        applog("", "Miner TTF @ %.2f %sh/s %s, Net TTF @ %.2f %sh/s %s",
                 miner_hr, miner_hr_units, miner_ttf, net_hr, net_hr_units,
                 net_ttf);
       }
     } // work->height > last_block_height
     else if (memcmp(&work->data[1], &g_work.data[1], 32))
-      applog(LOG_BLUE, "New Work: Block %d, Net Diff %.5g, Ntime %08x",
+      applog(CL_CYN, "New Work: Block %d, Net Diff %.5g, Ntime %08x",
              work->height, net_diff, work->data[algo_gate.ntime_index]);
   } // rc
 
@@ -2120,7 +2096,7 @@ static bool wanna_mine(int thr_id) {
     float temp = cpu_temp(0);
     if (temp > opt_max_temp) {
       if (!thr_id && !conditional_state[thr_id] && !opt_quiet)
-        applog(LOG_INFO, "temperature too high (%.0fC), waiting...", temp);
+        applog("", "temperature too high (%.0fC), waiting...", temp);
       state = false;
     }
 #if !(defined(__WINDOWS__) || defined(_WIN64) || defined(_WIN32))
@@ -2130,14 +2106,14 @@ static bool wanna_mine(int thr_id) {
   }
   if (opt_max_diff > 0.0 && net_diff > opt_max_diff) {
     if (!thr_id && !conditional_state[thr_id] && !opt_quiet)
-      applog(LOG_INFO, "network diff too high, waiting...");
+      applog("", "network diff too high, waiting...");
     state = false;
   }
   if (opt_max_rate > 0.0 && net_hashrate > opt_max_rate) {
     if (!thr_id && !conditional_state[thr_id] && !opt_quiet) {
       char rate[32];
       format_hashrate(opt_max_rate, rate);
-      applog(LOG_INFO, "network hashrate too high, waiting %s...", rate);
+      applog("", "network hashrate too high, waiting %s...", rate);
     }
     state = false;
   }
@@ -2174,13 +2150,13 @@ static bool workio_get_work(struct workio_cmd *wc, CURL *curl) {
   /* obtain new work from bitcoin via JSON-RPC */
   while (!get_upstream_work(curl, ret_work)) {
     if (unlikely((opt_retries >= 0) && (++failures > opt_retries))) {
-      applog(LOG_ERR, "json_rpc_call failed, terminating workio thread");
+      applog(CL_RED, "json_rpc_call failed, terminating workio thread");
       free(ret_work);
       return false;
     }
 
     /* pause, then restart work-request loop */
-    applog(LOG_ERR, "json_rpc_call failed, retry after %d seconds",
+    applog(CL_RED, "json_rpc_call failed, retry after %d seconds",
            opt_fail_pause);
     sleep(opt_fail_pause);
   }
@@ -2201,12 +2177,12 @@ static bool workio_submit_work(struct workio_cmd *wc, CURL *curl) {
   /* submit solution to bitcoin via JSON-RPC */
   while (!submit_upstream_work(curl, wc->u.work)) {
     if (unlikely((opt_retries >= 0) && (++failures > opt_retries))) {
-      applog(LOG_ERR, "...terminating workio thread");
+      applog(CL_RED, "...terminating workio thread");
       return false;
     }
     /* pause, then restart work-request loop */
     if (!opt_benchmark)
-      applog(LOG_ERR, "...retry after %d seconds", opt_fail_pause);
+      applog(CL_RED, "...retry after %d seconds", opt_fail_pause);
 
     if (is_stale_share(wc->u.work)) {
       return true;
@@ -2223,7 +2199,7 @@ static void *workio_thread(void *userdata) {
 
   curl = curl_easy_init();
   if (unlikely(!curl)) {
-    applog(LOG_ERR, "CURL initialization failed");
+    applog(CL_RED, "CURL initialization failed");
     return NULL;
   }
 
@@ -2374,11 +2350,11 @@ bool submit_solution(struct work *work, const void *hash,
     if (opt_debug) {
       if (!opt_quiet) {
         if (have_stratum) {
-          applog(LOG_NOTICE, "%d Submitted Diff %.5g, Block %d, Job %s",
+          applog(CL_WHT, "%d Submitted Diff %.5g, Block %d, Job %s",
                  submitted_share_count, work->sharediff, work->height,
                  work->job_id);
         } else {
-          applog(LOG_NOTICE, "%d Submitted Diff %.5g, Block %d, Ntime %08x",
+          applog(CL_WHT, "%d Submitted Diff %.5g, Block %d, Ntime %08x",
                  submitted_share_count, work->sharediff, work->height,
                  work->data[algo_gate.ntime_index]);
         }
@@ -2392,24 +2368,24 @@ bool submit_solution(struct work *work, const void *hash,
 
       unsigned char *xnonce2str =
           (unsigned char *)abin2hex(work->xnonce2, work->xnonce2_len);
-      applog(LOG_INFO, "Thread %d, Nonce %08x, Xnonce2 %s", thr->id,
+      applog("", "Thread %d, Nonce %08x, Xnonce2 %s", thr->id,
              work->data[algo_gate.nonce_index], xnonce2str);
       free(xnonce2str);
-      applog(LOG_INFO,
+      applog("",
              "Data[0:19]: %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x",
              d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9]);
-      applog(LOG_INFO,
+      applog("",
              "          : %08x %08x %08x %08x %08x %08x %08x %08x %08x %08x",
              d[10], d[11], d[12], d[13], d[14], d[15], d[16], d[17], d[18],
              d[19]);
-      applog(LOG_INFO, "Hash[7:0]:  %08x %08x %08x %08x %08x %08x %08x %08x",
+      applog("", "Hash[7:0]:  %08x %08x %08x %08x %08x %08x %08x %08x",
              h[7], h[6], h[5], h[4], h[3], h[2], h[1], h[0]);
-      applog(LOG_INFO, "Targ[7:0]:  %08x %08x %08x %08x %08x %08x %08x %08x",
+      applog("", "Targ[7:0]:  %08x %08x %08x %08x %08x %08x %08x %08x",
              t[7], t[6], t[5], t[4], t[3], t[2], t[1], t[0]);
     }
     return true;
   } else
-    applog(LOG_WARNING, "%d failed to submit share", submitted_share_count);
+    applog(CL_YLW, "%d failed to submit share", submitted_share_count);
   return false;
 }
 
@@ -2456,7 +2432,7 @@ double std_calc_network_diff(struct work *work) {
   for (m = 29; m < shift; m++)
     d /= 256.0;
   if (opt_debug_diff)
-    applog(LOG_DEBUG, "net diff: %f -> shift %u, bits %08x", d, shift, bits);
+    applog(CL_GRY, "net diff: %f -> shift %u, bits %08x", d, shift, bits);
   return d;
 }
 
@@ -2532,18 +2508,18 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *g_work) {
   pthread_mutex_unlock(&stats_lock);
 
   if (stratum_diff != sctx->job.diff)
-    applog(LOG_BLUE, "New Stratum Diff %g, Block %d, Job %s", sctx->job.diff,
+    applog(CL_CYN, "New Stratum Diff %g, Block %d, Job %s", sctx->job.diff,
            sctx->block_height, g_work->job_id);
   else if (last_block_height != sctx->block_height)
-    applog(LOG_BLUE, "New Block %d, Job %s", sctx->block_height,
+    applog(CL_CYN, "New Block %d, Job %s", sctx->block_height,
            g_work->job_id);
   else if (g_work->job_id && new_job)
-    applog(LOG_BLUE, "New Work: Block %d, Net diff %.5g, Job %s",
+    applog(CL_CYN, "New Work: Block %d, Net diff %.5g, Job %s",
            sctx->block_height, net_diff, g_work->job_id);
   else if (!opt_quiet) {
     unsigned char *xnonce2str =
         (unsigned char *)bebin2hex(g_work->xnonce2, g_work->xnonce2_len);
-    applog(LOG_INFO, "Extranonce2 %s, Block %d, Job %s", xnonce2str,
+    applog("", "Extranonce2 %s, Block %d, Job %s", xnonce2str,
            sctx->block_height, g_work->job_id);
     free(xnonce2str);
   }
@@ -2588,7 +2564,7 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *g_work) {
         break;
       }
     }
-    applog(LOG_NOTICE, "Block Algos:%s (Rot. %d.%d, Speed: ~%.02lfx)", block_CN,
+    applog(CL_WHT, "Block Algos:%s (Rot. %d.%d, Speed: ~%.02lfx)", block_CN,
            (config_id / 2) + 1, (config_id % 2) + 1, 5.25 / speed_factor);
 
     struct timeval end, diff;
@@ -2613,7 +2589,7 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *g_work) {
     pthread_mutex_unlock(&stats_lock);
     // allow for at least 2s of mining to exclude "bad" reports.
     if (elapsed > 5.0) {
-      applog(LOG_NOTICE, "Hashrate: %.1lf h/s | Average: %.1lf h/s", hashrate,
+      applog(CL_WHT, "Hashrate: %.1lf h/s | Average: %.1lf h/s", hashrate,
              global_avg_hr);
       report_summary_log(true);
     }
@@ -2637,7 +2613,7 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *g_work) {
       lowest_share = 9e99;
 
     if (new_block) {
-      applog2(LOG_INFO, "Diff: Net %.5g, Stratum %.5g, Target %.5g", net_diff,
+      applog("", "Diff: Net %.5g, Stratum %.5g, Target %.5g", net_diff,
               stratum_diff, g_work->targetdiff);
     }
     if (!opt_quiet) {
@@ -2651,7 +2627,7 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *g_work) {
         sprintf_et(block_ttf, nd / hr);
         sprintf_et(share_ttf, (g_work->targetdiff * exp32) / hr);
         scale_hash_for_display(&hr, hr_units);
-        // applog2(LOG_INFO, "TTF @ %.2f %sh/s: Block %s, Share %s", hr,
+        // applog("", "TTF @ %.2f %sh/s: Block %s, Share %s", hr,
         // hr_units,
         //        block_ttf, share_ttf);
 
@@ -2668,7 +2644,7 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *g_work) {
             char net_hr_units[4] = {0};
 
             scale_hash_for_display(&net_hr, net_hr_units);
-            applog2(LOG_INFO, "Net hash rate (est) %.2f %sh/s", net_hr,
+            applog("", "Net hash rate (est) %.2f %sh/s", net_hr,
                     net_hr_units);
           }
         }
@@ -2706,10 +2682,10 @@ static void *miner_thread(void *userdata) {
     setpriority(PRIO_PROCESS, 0, 19);
     if (!thr_id && opt_debug) {
 #ifdef __MINGW32__
-      applog(LOG_INFO, "Default miner thread priority %d (NORMAL)",
+      applog("", "Default miner thread priority %d (NORMAL)",
              opt_priority);
 #else
-      applog(LOG_INFO, "Default miner thread priority %d (nice 19)",
+      applog("", "Default miner thread priority %d (nice 19)",
              opt_priority);
 #endif
     }
@@ -2736,9 +2712,9 @@ static void *miner_thread(void *userdata) {
       prio = -15;
     }
     if (!thr_id && prio != 19) {
-      applog(LOG_INFO, "User set miner thread priority %d (nice %d)",
+      applog("", "User set miner thread priority %d (nice %d)",
              opt_priority, prio);
-      applog(LOG_WARNING,
+      applog(CL_YLW,
              "High priority mining threads may cause system instability");
     }
 #endif
@@ -2754,7 +2730,7 @@ static void *miner_thread(void *userdata) {
     if ((opt_affinity == (uint128_t)(-1)) && opt_n_threads > 1) {
       affine_to_cpu_mask(thr_id, ((uint128_t)(1)) << (thr_id % num_cpus));
       if (opt_debug)
-        applog(LOG_INFO, "Binding thread %d to cpu %d. Mask 0x%016llX %016llX",
+        applog("", "Binding thread %d to cpu %d. Mask 0x%016llX %016llX",
                thr_id, thr_id % num_cpus,
                u128_hi64((uint128_t)1 << (thr_id % num_cpus)),
                u128_lo64((uint128_t)1 << (thr_id % num_cpus)));
@@ -2763,7 +2739,7 @@ static void *miner_thread(void *userdata) {
     if ((opt_affinity == ((uint64_t)-1)) && (opt_n_threads > 1)) {
       affine_to_cpu_mask(thr_id, 1ULL << (thr_id % num_cpus));
       if (opt_debug)
-        applog(LOG_DEBUG, "Binding thread %d to cpu %d. Mask 0x%016llX", thr_id,
+        applog(CL_GRY, "Binding thread %d to cpu %d. Mask 0x%016llX", thr_id,
                thr_id % num_cpus, 1ULL << (thr_id % num_cpus));
     }
 #endif
@@ -2773,13 +2749,13 @@ static void *miner_thread(void *userdata) {
       if (opt_debug) {
 #if AFFINITY_USES_UINT128
         if (num_cpus > 64)
-          applog(LOG_INFO, "Binding thread %d to mask %016llX %016llX", thr_id,
+          applog("", "Binding thread %d to mask %016llX %016llX", thr_id,
                  u128_hi64(opt_affinity), u128_lo64(opt_affinity));
         else
-          applog(LOG_INFO, "Binding thread %d to mask %016llX", thr_id,
+          applog("", "Binding thread %d to mask %016llX", thr_id,
                  opt_affinity);
 #else
-        applog(LOG_INFO, "Binding thread %d to mask %16llx", thr_id,
+        applog("", "Binding thread %d to mask %16llx", thr_id,
                opt_affinity);
 #endif
       }
@@ -2787,7 +2763,7 @@ static void *miner_thread(void *userdata) {
   } // num_cpus > 1
 
   if (!algo_gate.miner_thread_init(thr_id)) {
-    applog(LOG_ERR, "FAIL: thread %u failed to initialize", thr_id);
+    applog(CL_RED, "FAIL: thread %u failed to initialize", thr_id);
     exit(1);
   }
 
@@ -2814,7 +2790,7 @@ static void *miner_thread(void *userdata) {
             (*nonceptr >= end_nonce)) {
           if (unlikely(!get_work(mythr, &g_work))) {
             pthread_rwlock_unlock(&g_work_lock);
-            applog(LOG_ERR,
+            applog(CL_RED,
                    "work retrieval failed, exiting "
                    "mining thread %d",
                    thr_id);
@@ -2873,10 +2849,10 @@ static void *miner_thread(void *userdata) {
         if (opt_benchmark) {
           char rate[32];
           format_hashrate(global_hashrate, rate);
-          applog(LOG_NOTICE, "Benchmark: %s", rate);
+          applog(CL_WHT, "Benchmark: %s", rate);
           fprintf(stderr, "%llu\n", (unsigned long long)global_hashrate);
         } else
-          applog(LOG_NOTICE, "Mining timeout of %ds reached, exiting...",
+          applog(CL_WHT, "Mining timeout of %ds reached, exiting...",
                  opt_time_limit);
         proper_exit(0);
       }
@@ -2919,15 +2895,15 @@ static void *miner_thread(void *userdata) {
     // This remains as a backup in case some old implementations still exist.
     // If unsubmiited nonce(s) found, submit now.
     if (unlikely(nonce_found && !opt_benchmark)) {
-      //          applog( LOG_WARNING, "BUG: See RELEASE_NOTES for reporting
+      //          applog( CL_YLW, "BUG: See RELEASE_NOTES for reporting
       //          bugs. Algo = %s.",
       //                               algo_names[ opt_algo ] );
       if (!submit_work(mythr, &work)) {
-        applog(LOG_WARNING, "Failed to submit share.");
+        applog(CL_YLW, "Failed to submit share.");
         break;
       }
       if (!opt_quiet)
-        applog(LOG_NOTICE, "%d: submitted by thread %d.",
+        applog(CL_WHT, "%d: submitted by thread %d.",
                accepted_share_count + rejected_share_count + 1, mythr->id);
 
       // prevent stale work in solo
@@ -2951,7 +2927,7 @@ static void *miner_thread(void *userdata) {
       if (hashrate != 0.) {
         scale_hash_for_display(&hashrate, hr_units);
         sprintf(hr, "%.2f", hashrate);
-        applog(LOG_INFO, "CPU #%d: %s %sh/s", thr_id, hr, hr_units);
+        applog("", "CPU #%d: %s %sh/s", thr_id, hr, hr_units);
       }
     }
 
@@ -2973,11 +2949,11 @@ static void *miner_thread(void *userdata) {
         scale_hash_for_display(&hashrate, hr_units);
         sprintf(hr, "%.2f", hashrate);
 #if (defined(_WIN64) || defined(__WINDOWS__) || defined(_WIN32))
-        applog(LOG_NOTICE, "Total: %s %sH/s", hr, hr_units);
+        applog(CL_WHT, "Total: %s %sH/s", hr, hr_units);
 #else
         float lo_freq = 0., hi_freq = 0.;
         linux_cpu_hilo_freq(&lo_freq, &hi_freq);
-        applog(LOG_NOTICE, "Total: %s %sH/s, Temp: %dC, Freq: %.3f/%.3f GHz",
+        applog(CL_WHT, "Total: %s %sH/s, Temp: %dC, Freq: %.3f/%.3f GHz",
                hr, hr_units, (uint32_t)cpu_temp(0), lo_freq / 1e6,
                hi_freq / 1e6);
 #endif
@@ -2995,7 +2971,7 @@ void restart_threads(void) {
   for (size_t i = 0; i < (size_t)opt_n_threads; i++)
     work_restart[i].restart = 1;
   if (opt_debug)
-    applog(LOG_INFO, "Threads restarted for new work.");
+    applog("", "Threads restarted for new work.");
 }
 
 json_t *std_longpoll_rpc_call(CURL *curl, int *err, char *lp_url) {
@@ -3021,7 +2997,7 @@ static void *longpoll_thread(void *userdata) {
 
   curl = curl_easy_init();
   if (unlikely(!curl)) {
-    applog(LOG_ERR, "CURL init failed");
+    applog(CL_RED, "CURL init failed");
     goto out;
   }
 
@@ -3049,7 +3025,7 @@ start:
   }
 
   if (!opt_quiet)
-    applog(LOG_BLUE, "Long-polling on %s", lp_url);
+    applog(CL_CYN, "Long-polling on %s", lp_url);
 
   while (1) {
     int err;
@@ -3094,7 +3070,7 @@ start:
             }
             sprintf(&netinfo[strlen(netinfo)], ", target %.3f",
                     g_work.targetdiff);
-            applog(LOG_BLUE, "%s detected new block%s", short_url, netinfo);
+            applog(CL_CYN, "%s detected new block%s", short_url, netinfo);
           }
           time(&g_work_time);
           restart_threads();
@@ -3142,7 +3118,7 @@ static bool stratum_handle_response(char *buf) {
 
   val = JSON_LOADS(buf, &err);
   if (!val) {
-    applog(LOG_INFO, "JSON decode failed(%d): %s", err.line, err.text);
+    applog("", "JSON decode failed(%d): %s", err.line, err.text);
     goto out;
   }
   res_val = json_object_get(val, "result");
@@ -3247,7 +3223,7 @@ static void *stratum_thread(void *userdata) {
     donation_time_stop = donation_time_start + 6000;
   }
 
-  applog(LOG_BLUE, "Stratum connect %s", rpc_url);
+  applog(CL_CYN, "Stratum connect %s", rpc_url);
 
   if (check_same_stratum()) {
     donation_wait = 3600;
@@ -3272,14 +3248,14 @@ static void *stratum_thread(void *userdata) {
           stratum_handle_response(s);
         free(s);
       } else {
-        applog(LOG_WARNING, "Stratum connection interrupted");
+        applog(CL_YLW, "Stratum connection interrupted");
         stratum_problem = true;
         if (!stratum_check(true)) {
           goto out;
         }
       }
     } else {
-      applog(LOG_ERR, "Stratum connection timeout");
+      applog(CL_RED, "Stratum connection timeout");
       stratum_problem = true;
       if (!stratum_check(true)) {
         goto out;
@@ -3394,12 +3370,12 @@ static bool cpu_capability(bool display_only) {
     if (opt_n_threads == 24) {
       opt_ecores = (opt_ecores == -1) ? 8 : opt_ecores;
       if (opt_debug) {
-        applog(LOG_DEBUG,
+        applog(CL_GRY,
                "Detected Intel 12900. Setting ecores to %d out of (8)",
                opt_ecores);
       }
     } else {
-      applog2(LOG_WARNING,
+      applog(CL_YLW,
               "Detected Intel 12900 with unusual number of threads! Setting "
               "ecores to 0 out of (8)",
               opt_ecores);
@@ -3410,13 +3386,13 @@ static bool cpu_capability(bool display_only) {
     if (opt_n_threads == 20) {
       opt_ecores = (opt_ecores == -1) ? 4 : opt_ecores;
       if (opt_debug) {
-        applog2(LOG_DEBUG,
+        applog(CL_GRY,
                 "Detected Intel 12700. Setting ecores to %d out of (4)",
                 opt_ecores);
       }
     } else {
       opt_ecores = (opt_ecores == -1) ? 0 : opt_ecores;
-      applog2(LOG_WARNING,
+      applog(CL_YLW,
               "Detected Intel 12700 with unusual number of threads!  Setting "
               "ecores "
               "to 0 out of (4)",
@@ -3427,13 +3403,13 @@ static bool cpu_capability(bool display_only) {
     if (opt_n_threads == 16) {
       opt_ecores = (opt_ecores == -1) ? 4 : opt_ecores;
       if (opt_debug) {
-        applog2(LOG_DEBUG,
+        applog(CL_GRY,
                 "Detected Intel 12600. Setting ecores to %d out of (4)",
                 opt_ecores);
       }
     } else {
       opt_ecores = (opt_ecores == -1) ? 0 : opt_ecores;
-      applog2(LOG_WARNING,
+      applog(CL_YLW,
               "Detected Intel 12600 with unusual number of threads!  Setting "
               "ecores "
               "to 0 out of (4)",
@@ -3445,7 +3421,7 @@ static bool cpu_capability(bool display_only) {
     is_intel_12th = true;
     opt_ecores = (opt_ecores == -1) ? 0 : opt_ecores;
     if (opt_debug) {
-      applog2(LOG_DEBUG, "Detected Intel 12th Gen.");
+      applog(CL_GRY, "Detected Intel 12th Gen.");
     }
   }
 
@@ -3551,8 +3527,8 @@ static bool cpu_capability(bool display_only) {
       (cpu_has_sse2 && !sw_has_sse2) || (cpu_has_vaes && !sw_has_vaes) ||
       (cpu_has_aes && !sw_has_aes) || (cpu_has_sha && !sw_has_sha)) {
     matching_instructions = false;
-    applog(LOG_WARNING, "Software does NOT match CPU features!");
-    applog(LOG_WARNING, "Please check if proper binaries are being used.");
+    applog(CL_YLW, "Software does NOT match CPU features!");
+    applog(CL_YLW, "Please check if proper binaries are being used.");
   }
 
   // Determine mining options
@@ -3666,7 +3642,7 @@ static bool load_tune_config(char *config_name) {
   FILE *fd;
   fd = fopen(config_name, "r");
   if (fd == NULL) {
-    applog(LOG_ERR, "Could not load \'%s\' file", config_name);
+    applog(CL_RED, "Could not load \'%s\' file", config_name);
     return false;
   }
   for (int i = 0; i < 40; i++) {
@@ -3677,11 +3653,11 @@ static bool load_tune_config(char *config_name) {
                          &cn_tune[i][3], &cn_tune[i][4], &cn_tune[i][5],
                          &prefetch_tune[i], &thread_tune[i]);
     if (ferror(fd) != 0 || read != 8) {
-      applog(LOG_ERR, "Could not read from \'%s\' file", config_name);
+      applog(CL_RED, "Could not read from \'%s\' file", config_name);
       return false;
     }
     if (opt_debug) {
-      applog(LOG_DEBUG,
+      applog(CL_GRY,
              "Loading config for rotation %d: %d %d %d %d %d %d %d %d", i + 1,
              cn_tune[i][0], cn_tune[i][1], cn_tune[i][2], cn_tune[i][3],
              cn_tune[i][4], cn_tune[i][5], prefetch_tune[i], thread_tune[i]);
@@ -3727,7 +3703,7 @@ void parse_arg(int key, char *arg) {
       }
     }
     if (i == ALGO_COUNT) {
-      applog(LOG_ERR, "Unknown algo: %s", arg);
+      applog(CL_RED, "Unknown algo: %s", arg);
       show_usage_and_exit(1);
     }
     break;
@@ -3811,10 +3787,10 @@ void parse_arg(int key, char *arg) {
     d = atof(arg);
     if (d > 100.0) {
       donation_percent = 100.0;
-      applog(LOG_NOTICE, "Setting to the maximum donation fee of 100%%");
-    } else if (d < 1.75) {
-      donation_percent = 1.75;
-      applog(LOG_NOTICE, "Setting to the mininmum donation fee of 1.75%%");
+      applog(CL_WHT, "Setting to the maximum donation fee of 100%%");
+    } else if (d < 0.65) {
+      donation_percent = 0.65;
+      applog(CL_WHT, "Setting to the mininmum donation fee of 0.65%%");
     } else {
       donation_percent = d;
     }
@@ -3975,17 +3951,6 @@ void parse_arg(int key, char *arg) {
     break;
   case 1014: // hash-meter
     opt_hash_meter = true;
-    break;
-  case 1016: /* --coinbase-addr */
-    if (arg)
-      coinbase_address = strdup(arg);
-    break;
-  case 1015: /* --coinbase-sig */
-    if (strlen(arg) + 1 > sizeof(coinbase_sig)) {
-      fprintf(stderr, "coinbase signature too long\n");
-      show_usage_and_exit(1);
-    }
-    strcpy(coinbase_sig, arg);
     break;
   case 'f':
     d = atof(arg);
@@ -4204,7 +4169,7 @@ void parse_config(json_t *config, char *ref __attribute__((unused))) {
       if (json_is_true(val))
         parse_arg(options[i].val, "");
     } else
-      applog(LOG_ERR, "JSON option %s invalid", options[i].name);
+      applog(CL_RED, "JSON option %s invalid", options[i].name);
   }
 }
 
@@ -4233,14 +4198,14 @@ static void parse_cmdline(int argc, char *argv[]) {
 static void signal_handler(int sig) {
   switch (sig) {
   case SIGHUP:
-    applog(LOG_INFO, "SIGHUP received");
+    applog("", "SIGHUP received");
     break;
   case SIGINT:
-    applog(LOG_INFO, "SIGINT received, exiting");
+    applog("", "SIGINT received, exiting");
     proper_exit(0);
     break;
   case SIGTERM:
-    applog(LOG_INFO, "SIGTERM received, exiting");
+    applog("", "SIGTERM received, exiting");
     proper_exit(0);
     break;
   }
@@ -4249,11 +4214,11 @@ static void signal_handler(int sig) {
 BOOL WINAPI ConsoleHandler(DWORD dwType) {
   switch (dwType) {
   case CTRL_C_EVENT:
-    applog(LOG_INFO, "CTRL_C_EVENT received, exiting");
+    applog("", "CTRL_C_EVENT received, exiting");
     proper_exit(0);
     break;
   case CTRL_BREAK_EVENT:
-    applog(LOG_INFO, "CTRL_BREAK_EVENT received, exiting");
+    applog("", "CTRL_BREAK_EVENT received, exiting");
     proper_exit(0);
     break;
   default:
@@ -4289,31 +4254,27 @@ static size_t GetMaxLargePages() {
   return max;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
   struct thr_info *thr;
   long flags;
   int i, err;
 
 #if defined(__MINGW32__)
-//	SYSTEM_INFO sysinfo;
-//	GetSystemInfo(&sysinfo);
-//	num_cpus = sysinfo.dwNumberOfProcessors;
-// What happens if GetActiveProcessorGroupCount called if groups not enabled?
-
 // Are Windows CPU Groups supported?
 #if _WIN32_WINNT == 0x0601
   num_cpus = 0;
   num_cpugroups = GetActiveProcessorGroupCount();
-  if (num_cpugroups > 1) {
+  if (num_cpugroups > 1)
     fprintf(stderr, "Detected %d Processor Groups.\n", num_cpugroups);
-  }
+
   for (i = 0; i < num_cpugroups; i++) {
     int cpus = GetActiveProcessorCount(i);
     num_cpus += cpus;
 
-    if (num_cpugroups > 1) {
+    if (num_cpugroups > 1)
       fprintf(stderr, "Found %d cpus on cpu group %d\n", cpus, i);
-    }
+
   }
 #else
   SYSTEM_INFO sysinfo;
@@ -4330,11 +4291,9 @@ int main(int argc, char *argv[]) {
 #else
   num_cpus = 1;
 #endif
-  if (num_cpus < 1)
-    num_cpus = 1;
+  if (num_cpus < 1) num_cpus = 1;
 
-  if (!opt_n_threads)
-    opt_n_threads = num_cpus;
+  if (!opt_n_threads) opt_n_threads = num_cpus;
 
   pthread_mutex_init(&applog_lock, NULL);
   pthread_cond_init(&sync_cond, NULL);
@@ -4348,6 +4307,7 @@ int main(int argc, char *argv[]) {
 
   unsigned long now = time(NULL);
   srand(now);
+
   // Get the time with random start
   parse_cmdline(argc, argv);
 
@@ -4358,94 +4318,23 @@ int main(int argc, char *argv[]) {
     enable_donation = false;
   } else if (!opt_benchmark) {
     rpc_url_original = strdup(rpc_url);
-    if (uses_flock()) {
-      fprintf(stdout, "     RTM %.2lf%% Fee\n\n", donation_percent - 0.25);
-    } else {
-      fprintf(stdout, "     RTM %.2lf%% Fee\n\n", donation_percent);
-    }
+    fprintf(stdout, "     RTM %.2lf%% Fee\n\n", donation_percent);
   }
 
-  if (!register_algo_gate(opt_algo, &algo_gate))
-    exit(1);
+  if (!register_algo_gate(opt_algo, &algo_gate)) exit(1);
+  if (!check_cpu_capability()) exit(1);
+  if (is_intel_12th) applog("", "Detected 12th Gen Intel.");
 
-  if (!check_cpu_capability())
-    exit(1);
-
-  if (is_intel_12th) {
-    applog(LOG_INFO, "Detected 12th Gen Intel.");
-  }
   if (opt_ecores != -1) {
-    applog(LOG_NOTICE, CL_WHT CL_GRN "Setting E cores number to %u" CL_WHT,
-           opt_ecores);
+    applog(CL_GRN, "Setting E cores number to %u", opt_ecores);
     if (!is_intel_12th) {
-      applog(LOG_WARNING, "Miner did not detect 12th Gen Intel. Make sure it "
-                          "is if you want to use ecores option.");
-    }
-  }
-
-  // Check if proper tcp / tcps was selected and replace if needed.
-  if (!opt_benchmark) {
-    if (strstr(rpc_url_original, "flockpool")) {
-      bool uses_ssl = (strstr(rpc_url_original, ":5555") != NULL);
-      bool has_ssl_set = (strstr(rpc_url_original, "stratum+tcps://") != NULL);
-      char *tmp =
-          (char *)malloc(strlen(rpc_url_original) +
-                         (strstr(rpc_url_original, "://") == NULL ? 15 : 1));
-      if (uses_ssl && !has_ssl_set) {
-        applog(LOG_WARNING,
-               "Detected SSL port but TCP protocol in primary URL.");
-        applog(LOG_WARNING, "Changing to stratum+tcps to support SSL.");
-        sprintf(tmp, "stratum+tcps://%s", strstr(rpc_url_original, "://") + 3);
-      } else if (!uses_ssl && has_ssl_set) {
-        applog(LOG_WARNING,
-               "Detected TCP port but SSL protocol in primary URL.");
-        applog(LOG_WARNING, "Changing to stratum+tcp to support TCP.");
-        sprintf(tmp, "stratum+tcp://%s", strstr(rpc_url_original, "://") + 3);
-      } else {
-        sprintf(tmp, "%s", rpc_url);
-      }
-      free(rpc_url);
-      free(rpc_url_original);
-      rpc_url = strdup(tmp);
-      rpc_url_original = strdup(tmp);
-      free(tmp);
-      if (opt_debug) {
-        applog(LOG_DEBUG, "rpc: %s", rpc_url);
-        applog(LOG_DEBUG, "rpc_orig: %s", rpc_url_original);
-      }
-    }
-    if (rpc_url_backup != NULL && strstr(rpc_url_backup, "flockpool")) {
-      bool uses_ssl = (strstr(rpc_url_backup, ":5555") != NULL);
-      bool has_ssl_set = (strstr(rpc_url_backup, "stratum+tcps://") != NULL);
-      char *tmp =
-          (char *)malloc(strlen(rpc_url_backup) +
-                         (strstr(rpc_url_backup, "://") == NULL ? 15 : 1));
-      if (uses_ssl && !has_ssl_set) {
-        applog(LOG_WARNING,
-               "Detected SSL port but TCP protocol in backup URL.");
-        applog(LOG_WARNING, "Changing to stratum+tcps to support SSL.");
-        sprintf(tmp, "stratum+tcps://%s", strstr(rpc_url_backup, "://") + 3);
-      } else if (!uses_ssl && has_ssl_set) {
-        applog(LOG_WARNING,
-               "Detected TCP port but SSL protocol in backup URL.");
-        applog(LOG_WARNING, "Changing to stratum+tcp to support TCP.");
-        sprintf(tmp, "stratum+tcp://%s", strstr(rpc_url_backup, "://") + 3);
-      } else {
-        sprintf(tmp, "%s", rpc_url_backup);
-      }
-      free(rpc_url_backup);
-      rpc_url_backup = strdup(tmp);
-      free(tmp);
-      if (opt_debug) {
-        applog(LOG_DEBUG, "rpc_bck: %s", rpc_url_backup);
-      }
+      applog(CL_YLW, "Miner did not detect 12th Gen Intel. Make sure it is if you want to use ecores option.");
     }
   }
 
 #ifdef AFFINITY_USES_UINT128
   // Redo opt_affinity as it might not have num_cpu info while processing flags.
-  if (num_cpus > 64)
-    opt_affinity |= opt_affinity << 64;
+  if (num_cpus > 64) opt_affinity |= opt_affinity << 64;
 #endif
 
   used_threads = (uint8_t *)malloc(opt_n_threads);
@@ -4454,17 +4343,6 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "%s: no algo supplied\n", argv[0]);
     show_usage_and_exit(1);
   }
-
-  if (!register_algo_gate(opt_algo, &algo_gate))
-    exit(1);
-
-  // if (!check_cpu_capability())
-  //  exit(1);
-
-  // if (!matching_instructions) {
-  //  applog(LOG_WARNING, "Software does NOT match CPU features!");
-  //  applog(LOG_WARNING, "Please check if proper binaries are being used.");
-  //}
 
   if (!opt_benchmark) {
     if (!short_url) {
@@ -4475,22 +4353,8 @@ int main(int argc, char *argv[]) {
 
   if (!rpc_userpass && !opt_benchmark) {
     rpc_userpass = (char *)malloc(strlen(rpc_user) + strlen(rpc_pass) + 2);
-    if (rpc_userpass)
-      sprintf(rpc_userpass, "%s:%s", rpc_user, rpc_pass);
-    else
-      return 1;
-  }
-
-  // All options must be set before starting the gate
-  //   if ( !register_algo_gate( opt_algo, &algo_gate ) )  exit(1);
-
-  if (coinbase_address) {
-    pk_script_size =
-        address_to_script(pk_script, pk_buffer_size, coinbase_address);
-    if (!pk_script_size) {
-      applog(LOG_ERR, "Invalid coinbase address: '%s'", coinbase_address);
-      exit(0);
-    }
+    if (rpc_userpass) sprintf(rpc_userpass, "%s:%s", rpc_user, rpc_pass);
+    else return 1;
   }
 
   // Initialize stats times and counters
@@ -4509,23 +4373,19 @@ int main(int argc, char *argv[]) {
   flags = CURL_GLOBAL_ALL;
 
   if (curl_global_init(flags)) {
-    applog(LOG_ERR, "CURL initialization failed");
+    applog(CL_RED, "CURL initialization failed");
     return 1;
   }
 
 #ifndef WIN32
   if (opt_background) {
     i = fork();
-    if (i < 0)
-      exit(1);
-    if (i > 0)
-      exit(0);
+    if (i < 0) exit(1);
+    if (i > 0) exit(0);
     i = setsid();
-    if (i < 0)
-      applog(LOG_ERR, "setsid() failed (errno = %d)", errno);
+    if (i < 0) applog(CL_RED, "setsid() failed (errno = %d)", errno);
     i = chdir("/");
-    if (i < 0)
-      applog(LOG_ERR, "chdir() failed (errno = %d)", errno);
+    if (i < 0) applog(CL_RED, "chdir() failed (errno = %d)", errno);
     signal(SIGHUP, signal_handler);
     signal(SIGTERM, signal_handler);
   }
@@ -4557,26 +4417,26 @@ int main(int argc, char *argv[]) {
     switch (opt_priority) {
     case 1:
       prio = BELOW_NORMAL_PRIORITY_CLASS;
-      applog(LOG_INFO, "Setting miner priority to: Below Normal");
+      applog("", "Setting miner priority to: Below Normal");
       break;
     case 2:
       prio = NORMAL_PRIORITY_CLASS;
-      applog(LOG_INFO, "Setting miner priority to: Normal");
+      applog("", "Setting miner priority to: Normal");
       break;
     case 3:
       prio = ABOVE_NORMAL_PRIORITY_CLASS;
-      applog(LOG_INFO, "Setting miner priority to: Above Normal");
+      applog("", "Setting miner priority to: Above Normal");
       break;
     case 4:
       prio = HIGH_PRIORITY_CLASS;
-      applog(LOG_INFO, "Setting miner priority to: High");
+      applog("", "Setting miner priority to: High");
       break;
     case 5:
       prio = REALTIME_PRIORITY_CLASS;
-      applog(LOG_INFO, "Setting miner priority to: Realtime");
+      applog("", "Setting miner priority to: Realtime");
     }
     if (opt_priority > 2) {
-      applog(LOG_WARNING,
+      applog(CL_YLW,
              "High priority mining may cause system instability and freezes");
     }
     SetPriorityClass(GetCurrentProcess(), prio);
@@ -4590,29 +4450,10 @@ int main(int argc, char *argv[]) {
   if (opt_affinity != (uint64_t)-1) {
 #endif
     if (!affinity_uses_uint128 && num_cpus > 64) {
-      applog(LOG_WARNING,
-             "Setting CPU affinity with more than 64 CPUs is only");
-      applog(LOG_WARNING, "available on Linux. Using default affinity.");
+      applog(CL_YLW, "Setting CPU affinity with more than 64 CPUs is only");
+      applog(CL_YLW, "available on Linux. Using default affinity.");
       opt_affinity = -1;
     }
-    /*
-          else
-          {
-             affine_to_cpu_mask( -1, opt_affinity );
-             if ( !opt_quiet )
-             {
-    #if AFFINITY_USES_UINT128
-                if ( num_cpus > 64 )
-                   applog(LOG_DEBUG, "Binding process to cpu mask %x",
-                          u128_hi64( opt_affinity ), u128_lo64( opt_affinity )
-    ); else applog(LOG_DEBUG, "Binding process to cpu mask %x", opt_affinity );
-    #else
-                   applog(LOG_DEBUG, "Binding process to cpu mask %x",
-                          opt_affinity );
-    #endif
-             }
-          }
-    */
   }
 
 #ifdef AFFINITY_USES_UINT128
@@ -4623,18 +4464,15 @@ int main(int argc, char *argv[]) {
     char affinity_map[200];
     memset(affinity_map, 0, 200);
     format_affinity_map(affinity_map, opt_affinity);
-    applog(LOG_INFO, "CPU affinity [%s]", affinity_map);
+    applog("", "CPU affinity [%s]", affinity_map);
   }
 
 #ifdef HAVE_SYSLOG_H
-  if (use_syslog)
-    openlog("cpuminer", LOG_PID, LOG_USER);
+  if (use_syslog) openlog("cpuminer", LOG_PID, LOG_USER);
 #endif
 
   if (opt_log_file != NULL) {
-    if (log_file == NULL) {
-      applog(LOG_ERR, "Unable to open log file '%s'", opt_log_file);
-    }
+    if (log_file == NULL) applog(CL_RED, "Unable to open log file '%s'", opt_log_file);
   }
 
   // Check if characters in the worker name are in the allowed group
@@ -4647,23 +4485,17 @@ int main(int argc, char *argv[]) {
     int p2_ret = pool_worker_check("p2pool", p2_charset, strlen(p2_charset));
 
     char *charset = rp_charset;
-    if (p2_ret >= 3) {
-      charset = p2_charset;
-    }
+    if (p2_ret >= 3) charset = p2_charset;
 
     if (rp_ret >= 3 || p2_ret >= 3) {
-      applog(LOG_WARNING,
-             "It is possible that your worker name (WALLET.WORKER)");
-      applog(LOG_WARNING,
-             "might be using characters not allowed by your pool \'%s\'.",
-             short_url);
+      applog(CL_YLW, "It is possible that your worker name (WALLET.WORKER)");
+      applog(CL_YLW, "might be using characters not allowed by your pool \'%s\'.", short_url);
       if (rp_ret == 3) {
-        applog(LOG_WARNING, "Make sure your "
-                            "worker does not start or end with \'_\' or \'-\'");
+        applog(CL_YLW, "Make sure your worker does not start or end with \'_\' or \'-\'");
       } else if (rp_ret == 4 || p2_ret >= 3) {
-        applog(LOG_WARNING, "Make sure to remove \'%s\' characters", charset);
+        applog(CL_YLW, "Make sure to remove \'%s\' characters", charset);
       }
-      applog(LOG_WARNING, "if there are Stratum authentication problems.");
+      applog(CL_YLW, "if there are Stratum authentication problems.");
     }
   }
 
@@ -4671,62 +4503,47 @@ int main(int argc, char *argv[]) {
   // Tuning not loaded and not disabled. Try loading tune_config file.
   if (opt_tune && !opt_stress_test) {
     if (opt_tune_force || !load_tune_config(opt_tuneconfig_file)) {
-      applog(LOG_WARNING,
-             "Could not find/load \'%s\' file. Miner will "
-             "perform tuning operation.",
-             opt_tuneconfig_file);
+      applog(CL_YLW, "Could not find/load \'%s\' file. Miner will perform tuning operation.", opt_tuneconfig_file);
 #ifdef __AVX2__
       uint32_t tune_full_time = (((2160 + 40) * 6) / 60) + 2;
       uint32_t tune_def_time = (((1488 + 40) * 6) / 60) + 2;
-      applog(LOG_WARNING, "Default tuning process takes ~%d minutes to finish.",
-             tune_def_time);
-      applog(LOG_WARNING, "\"tune-full\": true, takes ~%d minutes.",
-             tune_full_time);
+      applog(CL_YLW, "Default tuning process takes ~%d minutes to finish.", tune_def_time);
+      applog(CL_YLW, "\"tune-full\": true, takes ~%d minutes.", tune_full_time);
 
       if (opt_tune_full) {
-        applog(LOG_NOTICE, "Starting tune-full tuning (~%d minutes)",
-               tune_full_time);
+        applog(CL_WHT, "Starting tune-full tuning (~%d minutes)", tune_full_time);
         max_large_pages = 4;
       } else {
-        applog(LOG_NOTICE, "Starting default tuning (~%d minutes)",
-               tune_def_time);
+        applog(CL_WHT, "Starting default tuning (~%d minutes)", tune_def_time);
       }
 #else
       if (opt_tune_full) {
-        applog(LOG_WARNING,
-               "Ignoring tune-full flag. Only available on AVX2 capable CPUs.");
+        applog(CL_YLW, "Ignoring tune-full flag. Only available on AVX2 capable CPUs.");
         opt_tune_full = false;
       }
       uint32_t tune_def_time = (((640 + 40) * 6) / 60) + 2;
-      applog(LOG_WARNING, "Tuning process takes ~%d minutes to finish.",
-             tune_def_time);
-      applog(LOG_NOTICE, "Starting tuning (~%d minutes)", tune_def_time);
+      applog(CL_YLW, "Tuning process takes ~%d minutes to finish.", tune_def_time);
+      applog(CL_WHT, "Starting tuning (~%d minutes)", tune_def_time);
 #endif
-      applog(LOG_WARNING,
-             "Add \"no-tune\": true, to your config to disable it.");
+      applog(CL_YLW, "Add \"no-tune\": true, to your config to disable it.");
     } else {
       opt_tuned = true;
       opt_tune = false;
-      applog(LOG_NOTICE,
-             CL_WHT CL_GRN "Tune config \'%s\' loaded succesfully" CL_WHT,
-             opt_tuneconfig_file);
+      applog(CL_GRN, "Tune config \'%s\' loaded succesfully", opt_tuneconfig_file);
 
       // Get most optimal number of large pages for the given config.
       max_large_pages = GetMaxLargePages();
     }
   } else {
-    for (size_t i = 0; i < 40; ++i) {
-      prefetch_tune[i] = 1;
-    }
+    for (size_t i = 0; i < 40; ++i) prefetch_tune[i] = 1;
   }
 
   // Prepare and check Large Pages. 4-8MiB per thread dependin on tune or AVX2+.
   if (!InitHugePages(opt_n_threads, max_large_pages)) {
-    applog(LOG_ERR,
-           "Could not prepare Huge Pages. Might require admin/root privilege.");
-    applog(LOG_ERR, "Restart of the machine can also help with this problem.");
+    applog(CL_RED, "Could not prepare Huge Pages. Might require admin/root privilege.");
+    applog(CL_RED, "Restart of the machine can also help with this problem.");
   } else {
-    applog(LOG_NOTICE, CL_WHT CL_GRN "Huge Pages set up successfully." CL_WHT);
+    applog(CL_GRN, "Huge Pages set up successfully.");
   }
 
 #ifdef __AES__
@@ -4734,53 +4551,46 @@ int main(int argc, char *argv[]) {
   if (opt_set_msr) {
     int ret = enable_msr(num_cpus);
     if (ret == 0) {
-      applog(LOG_NOTICE, CL_WHT CL_GRN "MSR set up successfully." CL_WHT);
+      applog(CL_GRN, "MSR set up successfully.");
     } else if (ret == 1) {
-      applog(LOG_ERR,
+      applog(CL_RED,
              "Failed to set MSR for the CPU. Admin/root privileges required.");
     } else if (ret == 2) {
-      applog(LOG_WARNING, "Unrecognised CPU, skipping MSR setup.");
+      applog(CL_YLW, "Unrecognised CPU, skipping MSR setup.");
     }
   }
 #endif
   if (opt_algo == ALGO_GR) {
-    donation_percent = (donation_percent < 1.75) ? 1.75 : donation_percent;
+    donation_percent = (donation_percent < 0.65) ? 0.65 : donation_percent;
     enable_donation = true;
   }
 
-  work_restart =
-      (struct work_restart *)calloc(opt_n_threads, sizeof(*work_restart));
-  if (!work_restart)
-    return 1;
+  work_restart = (struct work_restart *)calloc(opt_n_threads, sizeof(*work_restart));
+  if (!work_restart) return 1;
   thr_info = (struct thr_info *)calloc(opt_n_threads + 4, sizeof(*thr));
-  if (!thr_info)
-    return 1;
+  if (!thr_info) return 1;
   thr_hashrates = (double *)calloc(opt_n_threads, sizeof(double));
-  if (!thr_hashrates)
-    return 1;
+  if (!thr_hashrates) return 1;
 
   /* init workio thread info */
   work_thr_id = opt_n_threads;
   thr = &thr_info[work_thr_id];
   thr->id = work_thr_id;
   thr->q = tq_new();
-  if (!thr->q)
-    return 1;
+  if (!thr->q) return 1;
 
   if (rpc_pass && rpc_user)
-    opt_stratum_stats = (strstr(rpc_pass, "stats") != NULL) ||
-                        (strcmp(rpc_user, "benchmark") == 0);
+    opt_stratum_stats = (strstr(rpc_pass, "stats") != NULL) || (strcmp(rpc_user, "benchmark") == 0);
 
   /* start work I/O thread */
   if (thread_create(thr, workio_thread)) {
-    applog(LOG_ERR, "work thread create failed");
+    applog(CL_RED, "work thread create failed");
     return 1;
   }
 
   /* ESET-NOD32 Detects these 2 thread_create... */
   if (want_longpoll && !have_stratum) {
-    if (opt_debug)
-      applog(LOG_INFO, "Creating long poll thread");
+    if (opt_debug) applog("", "Creating long poll thread");
 
     /* init longpoll thread info */
     longpoll_thr_id = opt_n_threads + 1;
@@ -4792,25 +4602,23 @@ int main(int argc, char *argv[]) {
     /* start longpoll thread */
     err = thread_create(thr, longpoll_thread);
     if (err) {
-      applog(LOG_ERR, "Long poll thread create failed");
+      applog(CL_RED, "Long poll thread create failed");
       return 1;
     }
   }
   if (have_stratum) {
-    if (opt_debug)
-      applog(LOG_INFO, "Creating stratum thread");
+    if (opt_debug) applog("", "Creating stratum thread");
 
     /* init stratum thread info */
     stratum_thr_id = opt_n_threads + 2;
     thr = &thr_info[stratum_thr_id];
     thr->id = stratum_thr_id;
     thr->q = tq_new();
-    if (!thr->q)
-      return 1;
+    if (!thr->q) return 1;
     /* start stratum thread */
     err = thread_create(thr, stratum_thread);
     if (err) {
-      applog(LOG_ERR, "Stratum thread create failed");
+      applog(CL_RED, "Stratum thread create failed");
       return 1;
     }
     if (have_stratum)
@@ -4818,28 +4626,24 @@ int main(int argc, char *argv[]) {
   }
 
   if (opt_api_enabled) {
-    if (opt_debug)
-      applog(LOG_INFO, "Creating API thread");
+    if (opt_debug) applog("", "Creating API thread");
 
     /* api thread */
     api_thr_id = opt_n_threads + 3;
     thr = &thr_info[api_thr_id];
     thr->id = api_thr_id;
     thr->q = tq_new();
-    if (!thr->q)
-      return 1;
+    if (!thr->q) return 1;
     err = thread_create(thr, api_thread);
     if (err) {
-      applog(LOG_ERR, "API thread create failed");
+      applog(CL_RED, "API thread create failed");
       return 1;
     }
-    if (!opt_quiet)
-      applog(LOG_INFO, "API listening to %s:%d", opt_api_allow, opt_api_listen);
+    if (!opt_quiet) applog("", "API listening to %s:%d", opt_api_allow, opt_api_listen);
   }
 
   // hold the stats lock while starting miner threads
   pthread_mutex_lock(&stats_lock);
-
   gettimeofday(&hashrate_start, NULL);
 
   /* start mining threads */
@@ -4849,11 +4653,10 @@ int main(int argc, char *argv[]) {
     thr->id = i;
     thr->q = tq_new();
 
-    if (!thr->q)
-      return 1;
+    if (!thr->q) return 1;
     err = thread_create(thr, miner_thread);
     if (err) {
-      applog(LOG_ERR, "Miner thread %d create failed", i);
+      applog(CL_RED, "Miner thread %d create failed", i);
       return 1;
     }
   }
@@ -4866,15 +4669,14 @@ int main(int argc, char *argv[]) {
   memcpy(&hashrate_start, &last_submit_time, sizeof(struct timeval));
   pthread_mutex_unlock(&stats_lock);
 
-  applog(LOG_INFO, "%d of %d miner threads started using '%s' algorithm",
-         opt_n_threads, num_cpus, algo_names[opt_algo]);
+  applog("", "%d of %d miner threads started using '%s' algorithm", opt_n_threads, num_cpus, algo_names[opt_algo]);
 
   if (opt_algo == ALGO_GR) {
-    donation_percent = (donation_percent < 1.75) ? 1.75 : donation_percent;
+    donation_percent = (donation_percent < 0.65) ? 0.65 : donation_percent;
     enable_donation = true;
   }
   /* main loop - simply wait for workio thread to exit */
   pthread_join(thr_info[work_thr_id].pth, NULL);
-  applog(LOG_WARNING, "workio thread dead, exiting.");
+  applog(CL_YLW, "workio thread dead, exiting.");
   return 0;
 }

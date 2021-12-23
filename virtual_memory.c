@@ -50,7 +50,7 @@ static BOOL SetLockPagesPrivilege() {
   if (OpenProcessToken(GetCurrentProcess(),
                        TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &token) != TRUE) {
     if (opt_debug) {
-      applog(LOG_DEBUG, "Huge Pages: Failed to open process token.");
+      applog(CL_GRY, "Huge Pages: Failed to open process token.");
     }
     return FALSE;
   }
@@ -62,7 +62,7 @@ static BOOL SetLockPagesPrivilege() {
   if (!LookupPrivilegeValue(NULL, SE_LOCK_MEMORY_NAME,
                             &(tp.Privileges[0].Luid))) {
     if (opt_debug) {
-      applog(LOG_DEBUG, "Huge Pages: Failed to lookup privilege table.");
+      applog(CL_GRY, "Huge Pages: Failed to lookup privilege table.");
     }
     return FALSE;
   }
@@ -70,7 +70,7 @@ static BOOL SetLockPagesPrivilege() {
   BOOL rc = AdjustTokenPrivileges(token, FALSE, &tp, 0, NULL, NULL);
   if (!rc || GetLastError() != ERROR_SUCCESS) {
     if (opt_debug) {
-      applog(LOG_DEBUG, "Huge Pages: Failed to adjust privelege token.");
+      applog(CL_GRY, "Huge Pages: Failed to adjust privelege token.");
     }
     return FALSE;
   }
@@ -127,7 +127,7 @@ static BOOL ObtainLockPagesPrivilege() {
   }
 
   if (!user) {
-    applog(LOG_ERR, "Huge Pages: Failed token query.");
+    applog(CL_RED, "Huge Pages: Failed token query.");
     return FALSE;
   }
 
@@ -135,17 +135,17 @@ static BOOL ObtainLockPagesPrivilege() {
   BOOL result = FALSE;
   LSA_HANDLE handle;
   if ((status = OpenPolicy(NULL, POLICY_ALL_ACCESS, &handle))) {
-    applog(LOG_ERR, "Huge Pages: Failed to open policy %u",
+    applog(CL_RED, "Huge Pages: Failed to open policy %u",
            LsaNtStatusToWinError(status));
   }
 
   if ((status =
            SetPrivilege(handle, user->User.Sid, _T(SE_LOCK_MEMORY_NAME)))) {
-    applog(LOG_ERR, "Huge pages: Failed to add account rights %lu",
+    applog(CL_RED, "Huge pages: Failed to add account rights %lu",
            LsaNtStatusToWinError(status));
     result = FALSE;
   } else {
-    applog(LOG_WARNING,
+    applog(CL_YLW,
            "Huge pages support was successfully enabled, but system reboot "
            "is required to use it!");
     sleep(5);
@@ -293,7 +293,7 @@ bool InitHugePages(size_t threads, size_t max_large_pages) {
   const size_t nodes = numa_max_node();
   const size_t hw_threads = numa_num_possible_cpus();
   if (opt_debug || nodes > 0) {
-    applog(LOG_BLUE, "Detected %lu NUMA node(s).", nodes + 1);
+    applog(CL_CYN, "Detected %lu NUMA node(s).", nodes + 1);
   }
 
   int node_cpus[64];
@@ -310,12 +310,12 @@ bool InitHugePages(size_t threads, size_t max_large_pages) {
 
   // Spread Large Pages allocation through each node.
   if (threads > hw_threads) {
-    applog(LOG_BLUE, "Using %d threads on %d hw_threads.", threads, hw_threads);
+    applog(CL_CYN, "Using %d threads on %d hw_threads.", threads, hw_threads);
     for (size_t node = 0; node <= nodes; ++node) {
       int t = node_cpus[node];
       node_cpus[node] = ceil((double)node_cpus[node] *
                              ((double)threads / (double)hw_threads));
-      applog(LOG_BLUE, "Treating node %d with %d threads as %d threads.", node,
+      applog(CL_CYN, "Treating node %d with %d threads as %d threads.", node,
              t, node_cpus[node]);
     }
   }
@@ -326,10 +326,10 @@ bool InitHugePages(size_t threads, size_t max_large_pages) {
   for (size_t node = 0; node <= nodes; ++node) {
     if (!InitNodeHugePages(node_cpus[node] * max_large_pages, node)) {
       to_reinitialize[nodes_err++] = node;
-      applog(LOG_ERR, "Failed to initialize Large Pages on node%lu", node);
+      applog(CL_RED, "Failed to initialize Large Pages on node%lu", node);
     } else {
       if (opt_debug || node > 0) {
-        applog(LOG_BLUE, "Successfully initialized Large Pages on node%lu",
+        applog(CL_CYN, "Successfully initialized Large Pages on node%lu",
                node);
       }
       nodes_ok++;
@@ -353,7 +353,7 @@ bool InitHugePages(size_t threads, size_t max_large_pages) {
         }
         if (!invalid_node) {
           if (AddNodeHugePages(node_cpus[node] * max_large_pages, node)) {
-            applog(LOG_WARNING,
+            applog(CL_YLW,
                    "Initialized node%lu Large Pages allocation on node%lu",
                    to_reinitialize[id++], node);
             nodes_err--;
@@ -387,7 +387,7 @@ void *AllocateLargePagesMemory(size_t size) {
 
   if (mem == MAP_FAILED) {
     if (huge_pages) {
-      applog(LOG_ERR, "Huge Pages allocation failed.");
+      applog(CL_RED, "Huge Pages allocation failed.");
     }
 
     // Retry without huge pages.
@@ -407,7 +407,7 @@ void DeallocateLargePagesMemory(void **memory) {
   // Needs to be multiple of Large Pages (2 MiB).
   int status = munmap(*memory, GetProperSize(currently_allocated));
   if (status != 0) {
-    applog(LOG_ERR, "Could not properly deallocate memory!");
+    applog(CL_RED, "Could not properly deallocate memory!");
   }
   *memory = NULL;
   allocated_hp = false;
@@ -419,11 +419,11 @@ void *AllocateMemory(size_t size) {
   void *mem = AllocateLargePagesMemory(size);
   if (mem == NULL) {
     if (huge_pages) {
-      applog(LOG_WARNING, "Using malloc as allocation method.");
+      applog(CL_YLW, "Using malloc as allocation method.");
       static int ct = 0;
       if (ct == 0) {
         ++ct;
-        applog(LOG_ERR, "Consider Restarting the PC");
+        applog(CL_RED, "Consider Restarting the PC");
       }
     }
 #ifdef __MINGW32__
@@ -433,7 +433,7 @@ void *AllocateMemory(size_t size) {
 #endif
     allocated_hp = false;
     if (mem == NULL) {
-      applog(LOG_ERR, "Could not allocate any memory for thread.");
+      applog(CL_RED, "Could not allocate any memory for thread.");
       exit(1);
     }
   } else {

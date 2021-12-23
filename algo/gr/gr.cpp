@@ -231,7 +231,7 @@ int gr_hash(void *output, const void *input0, const void *input1,
     // Stop early.
     if (work_restart[thr_id].restart && !(opt_benchmark || opt_tune)) {
       if (opt_debug && !thr_id) {
-        applog(LOG_DEBUG, "Threads exit early.");
+        applog(CL_GRY, "Threads exit early.");
       }
       return 0;
     }
@@ -270,7 +270,7 @@ int scanhash_gr(struct work *work, uint32_t max_nonce, uint64_t *hashes_done,
   if (opt_benchmark) {
     sleep(1);
     if (thr_id == 0) {
-      applog(LOG_BLUE, "Starting benchmark. Benchmark takes %.0lfs to complete",
+      applog(CL_CYN, "Starting benchmark. Benchmark takes %.0lfs to complete",
              gr_benchmark_time / 1e6);
     }
     benchmark(pdata, thr_id, 0);
@@ -288,7 +288,7 @@ int scanhash_gr(struct work *work, uint32_t max_nonce, uint64_t *hashes_done,
     for (int i = 0; i < 15 + 3; i++) {
       sprintf(order + (i * 3), "%02d ", gr_hash_order[i]);
     }
-    applog(LOG_DEBUG, "Hash order %s", order);
+    applog(CL_GRY, "Hash order %s", order);
   }
   if (opt_tuned) {
     select_tuned_config(thr_id);
@@ -304,7 +304,7 @@ int scanhash_gr(struct work *work, uint32_t max_nonce, uint64_t *hashes_done,
   // Check if current rotation is "disabled" by the user.
   if (is_rot_disabled()) {
     if (thr_id == 0) {
-      applog(LOG_WARNING, "Detected disabled rotation %d. Waiting...",
+      applog(CL_YLW, "Detected disabled rotation %d. Waiting...",
              (get_config_id() / 2) + 1);
     }
     while (!(*restart)) {
@@ -334,7 +334,7 @@ int scanhash_gr(struct work *work, uint32_t max_nonce, uint64_t *hashes_done,
         for (int i = 0; i < 2; i++) {
           if (unlikely(valid_hash(hash + (i << 3), ptarget))) {
             if (opt_debug) {
-              applog(LOG_BLUE, "Solution found. Nonce: %u | Diff: %.10lf",
+              applog(CL_CYN, "Solution found. Nonce: %u | Diff: %.10lf",
                      bswap_32(nonce + i), hash_to_diff(hash + (i << 3)));
             }
             pdata[19] = bswap_32(nonce + i);
@@ -347,7 +347,7 @@ int scanhash_gr(struct work *work, uint32_t max_nonce, uint64_t *hashes_done,
     edata0[19] += 2;
     edata1[19] += 2;
     nonce += 2;
-    hashes += (enable_donation && donation_percent >= 1.75) ? 0 : 1;
+    hashes += (enable_donation && donation_percent >= 0.65) ? 0 : 1;
   }
   pdata[19] = nonce;
   *hashes_done = pdata[19] - first_nonce;

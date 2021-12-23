@@ -1,3 +1,14 @@
+Introduction to cpuminer-gr-cmky
+--------------------------------
+
+Lowered dev fee to 0.65% from 1.75%
+Removed discount for mining at FlockPool
+Removed color codes from Log file
+Made console text more legible
+Code cleanup, removed redundent code from startup
+
+![alt text](screenshots/screenshot.png?raw=true)
+
 cpuminer-gr is a fork of cpuminer-opt by Jay D Dee which is a fork of cpuminer-multi with optimizations
 imported from other miners developped by lucas Jones, djm34, Wolf0, pooler,
 Jeff garzik, ig0tik3d, elmad, palmd, and Optiminer, with additional
@@ -136,7 +147,7 @@ RTM Discord or opening an issue in git:
 
 https://discord.gg/2T8xG7e
 
-https://github.com/WyvernTKC/cpuminer-gr-avx2/issues
+https://github.com/cmyk-B/cpuminer-gr-cmky/issues
 
 All problem reports must be accompanied by a proper problem definition.
 This should include how the problem occurred, the command line and
@@ -164,5 +175,8 @@ Delgon:
 RTM: RQKcAZBtsSacMUiGNnbk3h3KJAN94tstvt
 ETH: 0x6C1273b5f4D583bA00aeB2cE68f54825411D6E8c
 
+cmyk-B:
+
+RTM: RWrgU3EPaGN5AeVqgn2shbKEmF17NrhbT6
 
 Happy mining!

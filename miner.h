@@ -85,17 +85,6 @@ extern "C" {
 
 #ifdef HAVE_SYSLOG_H
 #include <syslog.h>
-#define LOG_BLUE 0x10 /* unique value */
-#else
-enum {
-  LOG_ERR,
-  LOG_WARNING,
-  LOG_NOTICE,
-  LOG_INFO,
-  LOG_DEBUG,
-  /* custom notices */
-  LOG_BLUE = 0x10,
-};
 #endif
 
 extern bool is_power_of_2(int n);
@@ -305,9 +294,7 @@ struct thr_api {
 
 #define CL_WHT "\x1B[01;37m" /* white */
 
-void applog(int prio, const char *fmt, ...);
-void applog2(int prio, const char *fmt, ...);
-void applog3(const char *fmt, ...);
+void applog(char *color, const char *fmt, ...);
 void restart_threads(void);
 extern json_t *json_rpc_call(CURL *curl, const char *url, const char *userpass,
                              const char *rpc_req, int *curl_err, int flags);
@@ -676,7 +663,7 @@ Options:\n\
       --verify          enable additional time consuming start up tests\n\
       --version         display version information and exit\n\
       --log=FILE        path to the file that will include a copy of miner output. File is not cleared after restart.\n\
-  -d, --donation=VAL    donation value in %%. Default is 1.75\n"
+  -d, --donation=VAL    donation value in %%. Default is 0.65\n"
 #ifdef __AES__
                             "\
   -y  --no-msr          disable application of MSR mod on the system\n"
@@ -720,8 +707,6 @@ static struct option const options[] = {
     {"benchmark", 0, NULL, 1005},
     {"cputest", 0, NULL, 1006},
     {"cert", 1, NULL, 1001},
-    {"coinbase-addr", 1, NULL, 1016},
-    {"coinbase-sig", 1, NULL, 1015},
     {"config", 1, NULL, 'c'},
     {"cpu-affinity", 1, NULL, 1020},
     {"cpu-priority", 1, NULL, 1021},

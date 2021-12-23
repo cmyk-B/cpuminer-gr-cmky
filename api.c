@@ -320,7 +320,7 @@ static int websocket_handshake(SOCKETTYPE c, char *result, char *clientkey) {
   SHA_CTX ctx;
 
   if (opt_protocol)
-    applog(LOG_DEBUG, "clientkey: %s", clientkey);
+    applog(CL_GRY, "clientkey: %s", clientkey);
 
   sprintf(inpkey, "%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", clientkey);
 
@@ -523,14 +523,14 @@ static void api() {
 
   SOCKETTYPE *apisock;
   if (!opt_api_listen && opt_debug) {
-    applog(LOG_DEBUG, "API disabled");
+    applog(CL_GRY, "API disabled");
     return;
   }
 
   if (opt_api_allow) {
     setup_ipaccess();
     if (ips == 0) {
-      applog(LOG_WARNING, "API not running (no valid IPs specified)%s",
+      applog(CL_YLW, "API not running (no valid IPs specified)%s",
              UNAVAILABLE);
     }
   }
@@ -542,7 +542,7 @@ static void api() {
 
   *apisock = socket(AF_INET, SOCK_STREAM, 0);
   if (*apisock == INVSOCK) {
-    applog(LOG_ERR, "API initialisation failed (%s)%s", strerror(errno),
+    applog(CL_RED, "API initialisation failed (%s)%s", strerror(errno),
            UNAVAILABLE);
     return;
   }
@@ -551,7 +551,7 @@ static void api() {
   serv.sin_family = AF_INET;
   serv.sin_addr.s_addr = inet_addr(addr);
   if (serv.sin_addr.s_addr == (in_addr_t)INVINETADDR) {
-    applog(LOG_ERR, "API initialisation 2 failed (%s)%s", strerror(errno),
+    applog(CL_RED, "API initialisation 2 failed (%s)%s", strerror(errno),
            UNAVAILABLE);
     return;
   }
@@ -566,7 +566,7 @@ static void api() {
   // If it doesn't work, we don't really care - just show a debug message
   if (SOCKETFAIL(setsockopt(*apisock, SOL_SOCKET, SO_REUSEADDR,
                             (void *)(&optval), sizeof(optval))))
-    applog(LOG_DEBUG, "API setsockopt SO_REUSEADDR failed (ignored): %s",
+    applog(CL_GRY, "API setsockopt SO_REUSEADDR failed (ignored): %s",
            SOCKERRMSG);
 #else
   // On windows a 2nd program can bind to a port>1024 already in use unless
@@ -584,7 +584,7 @@ static void api() {
         break;
       else {
         if (!opt_quiet || opt_debug)
-          applog(LOG_WARNING,
+          applog(CL_YLW,
                  "API bind to port %d failed - trying again in 20sec", port);
         sleep(20);
       }
@@ -593,14 +593,14 @@ static void api() {
   }
 
   if (bound == 0) {
-    applog(LOG_WARNING, "API bind to port %d failed (%s)%s", port, binderror,
+    applog(CL_YLW, "API bind to port %d failed (%s)%s", port, binderror,
            UNAVAILABLE);
     free(apisock);
     return;
   }
 
   if (SOCKETFAIL(listen(*apisock, QUEUE))) {
-    applog(LOG_ERR, "API initialisation 3 failed (%s)%s", strerror(errno),
+    applog(CL_RED, "API initialisation 3 failed (%s)%s", strerror(errno),
            UNAVAILABLE);
     CLOSESOCKET(*apisock);
     free(apisock);
@@ -616,7 +616,7 @@ static void api() {
     clisiz = sizeof(cli);
     if (SOCKETFAIL(c = accept((SOCKETTYPE)*apisock, (struct sockaddr *)(&cli),
                               &clisiz))) {
-      applog(LOG_ERR, "API failed (%s)%s", strerror(errno), UNAVAILABLE);
+      applog(CL_RED, "API failed (%s)%s", strerror(errno), UNAVAILABLE);
       CLOSESOCKET(*apisock);
       free(apisock);
       free(buffer);
@@ -625,7 +625,7 @@ static void api() {
 
     addrok = check_connect(&cli, &connectaddr, &group);
     if (opt_debug && opt_protocol)
-      applog(LOG_DEBUG, "API: connection from %s - %s", connectaddr,
+      applog(CL_GRY, "API: connection from %s - %s", connectaddr,
              addrok ? "Accepted" : "Ignored");
 
     if (addrok) {
@@ -647,7 +647,7 @@ static void api() {
         buf[n] = '\0';
 
       // if (opt_debug && opt_protocol && n > 0)
-      //	applog(LOG_DEBUG, "API: recv command: (%d) '%s'+char(%x)", n,
+      //	applog(CL_GRY, "API: recv command: (%d) '%s'+char(%x)", n,
       // buf, buf[n-1]);
 
       if (!fail) {
@@ -680,7 +680,7 @@ static void api() {
           *(params++) = '\0';
 
         if (opt_debug && opt_protocol && n > 0)
-          applog(LOG_DEBUG, "API: exec command %s(%s)", buf, params);
+          applog(CL_GRY, "API: exec command %s(%s)", buf, params);
 
         for (i = 0; i < CMDMAX; i++) {
           if (strcmp(buf, cmds[i].name) == 0) {
