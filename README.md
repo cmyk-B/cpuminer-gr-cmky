@@ -5,7 +5,7 @@ Lowered dev fee to 0.65% from 1.75%\
 Removed discount for mining at FlockPool\
 Removed color codes from Log file\
 Made console text more legible\
-Code cleanup, removed redundent code from startup\
+Code cleanup, removed redundant code from startup
 
 ![alt text](screenshots/screenshot.png?raw=true)
 
