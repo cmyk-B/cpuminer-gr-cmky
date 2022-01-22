@@ -9,17 +9,17 @@
 
 # define some local variables
 
-export LOCAL_LIB="$HOME/usr/lib"
-export CONFIGURE_ARGS="--with-curl=$LOCAL_LIB/curl --with-crypto=$LOCAL_LIB/openssl --host=x86_64-w64-mingw32"
-export MINGW_LIB="/usr/x86_64-w64-mingw32/lib"
+export LOCAL_LIB="/opt/mingw-w64/"
+export CONFIGURE_ARGS="--with-curl=$LOCAL_LIB --with-crypto=$LOCAL_LIB --host=x86_64-w64-mingw32"
+#export MINGW_LIB="/usr/x86_64-w64-mingw32/lib"
 # set correct gcc version
-export GCC_MINGW_LIB="/usr/lib/gcc/x86_64-w64-mingw32/10-win32"
+#export GCC_MINGW_LIB="/usr/lib/gcc/x86_64-w64-mingw32/10-win32"
 # used by GCC
-export LDFLAGS="-L$LOCAL_LIB/curl/lib/.libs -L$LOCAL_LIB/gmp/.libs -L$LOCAL_LIB/openssl"
+export LDFLAGS="-L$LOCAL_LIB/lib -L$LOCAL_LIB/lib -L$LOCAL_LIB/lib"
 
 # make link to local gmp header file.
 rm ./gmp.h 2>/dev/null
-ln -s $LOCAL_LIB/gmp/gmp.h ./gmp.h
+ln -s ${LOCAL_LIB}/include/gmp.h ./gmp.h
 
 # edit configure to fix pthread lib name for Windows.
 #sed -i 's/"-lpthread"/"-lpthreadGC2"/g' configure.ac
@@ -30,12 +30,13 @@ rm -rf bin/win/ 2>/dev/null
 mkdir -p bin/win/ 2>/dev/null
 
 
-cp $MINGW_LIB/zlib1.dll bin/win/
-cp $MINGW_LIB/libwinpthread-1.dll bin/win/
-cp $GCC_MINGW_LIB/libstdc++-6.dll bin/win/
-cp $GCC_MINGW_LIB/libgcc_s_seh-1.dll bin/win/
-cp $LOCAL_LIB/openssl/libcrypto-1_1-x64.dll bin/win/
-cp $LOCAL_LIB/curl/lib/.libs/libcurl-4.dll bin/win/
+cp ${LOCAL_LIB}/bin/zlib1.dll bin/win/
+cp ${LOCAL_LIB}/x86_64-w64-mingw32/bin/libwinpthread-1.dll bin/win/
+cp ${LOCAL_LIB}/x86_64-w64-mingw32/lib/libstdc++-6.dll bin/win/
+cp ${LOCAL_LIB}/x86_64-w64-mingw32/lib/libgcc_s_seh-1.dll bin/win/
+cp ${LOCAL_LIB}/bin/libcrypto-1_1-x64.dll bin/win/
+cp ${LOCAL_LIB}/bin/libssl-1_1-x64.dll bin/win/
+cp ${LOCAL_LIB}/bin/libcurl-4.dll bin/win/
 
 
 # This flag should be removed for Older Windows versions. It is used to enable
